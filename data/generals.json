@@ -1,0 +1,154 @@
+{
+  "generals": [
+    {
+      "id": 1,
+      "name": "柴田勝家",
+      "age": 28,
+      "war_skill": 85,
+      "leadership": 80,
+      "politics": 60,
+      "intelligence": 65,
+      "starting_daimyo": 1
+    },
+    {
+      "id": 2,
+      "name": "丹羽長秀",
+      "age": 26,
+      "war_skill": 75,
+      "leadership": 75,
+      "politics": 85,
+      "intelligence": 80,
+      "starting_daimyo": 1
+    },
+    {
+      "id": 3,
+      "name": "滝川一益",
+      "age": 32,
+      "war_skill": 80,
+      "leadership": 70,
+      "politics": 70,
+      "intelligence": 75,
+      "starting_daimyo": 1
+    },
+    {
+      "id": 4,
+      "name": "明智光秀",
+      "age": 30,
+      "war_skill": 85,
+      "leadership": 80,
+      "politics": 90,
+      "intelligence": 95,
+      "starting_daimyo": 1
+    },
+    {
+      "id": 5,
+      "name": "竹中半兵衛",
+      "age": 22,
+      "war_skill": 70,
+      "leadership": 75,
+      "politics": 80,
+      "intelligence": 98,
+      "starting_daimyo": 2
+    },
+    {
+      "id": 6,
+      "name": "斎藤義龍",
+      "age": 30,
+      "war_skill": 75,
+      "leadership": 70,
+      "politics": 65,
+      "intelligence": 70,
+      "starting_daimyo": 2
+    },
+    {
+      "id": 7,
+      "name": "直江兼続",
+      "age": 18,
+      "war_skill": 80,
+      "leadership": 85,
+      "politics": 90,
+      "intelligence": 92,
+      "starting_daimyo": 3
+    },
+    {
+      "id": 8,
+      "name": "柿崎景家",
+      "age": 35,
+      "war_skill": 88,
+      "leadership": 82,
+      "politics": 60,
+      "intelligence": 65,
+      "starting_daimyo": 3
+    },
+    {
+      "id": 9,
+      "name": "山本勘助",
+      "age": 55,
+      "war_skill": 85,
+      "leadership": 80,
+      "politics": 70,
+      "intelligence": 90,
+      "starting_daimyo": 4
+    },
+    {
+      "id": 10,
+      "name": "馬場信春",
+      "age": 45,
+      "war_skill": 90,
+      "leadership": 85,
+      "politics": 65,
+      "intelligence": 75,
+      "starting_daimyo": 4
+    },
+    {
+      "id": 11,
+      "name": "内藤昌豊",
+      "age": 42,
+      "war_skill": 85,
+      "leadership": 80,
+      "politics": 75,
+      "intelligence": 80,
+      "starting_daimyo": 4
+    },
+    {
+      "id": 12,
+      "name": "小早川隆景",
+      "age": 28,
+      "war_skill": 85,
+      "leadership": 85,
+      "politics": 88,
+      "intelligence": 90,
+      "starting_daimyo": 5
+    },
+    {
+      "id": 13,
+      "name": "吉川元春",
+      "age": 30,
+      "war_skill": 92,
+      "leadership": 87,
+      "politics": 70,
+      "intelligence": 75,
+      "starting_daimyo": 5
+    },
+    {
+      "id": 14,
+      "name": "太原雪斎",
+      "age": 60,
+      "war_skill": 75,
+      "leadership": 80,
+      "politics": 95,
+      "intelligence": 98,
+      "starting_daimyo": 6
+    },
+    {
+      "id": 15,
+      "name": "松平元康",
+      "age": 17,
+      "war_skill": 80,
+      "leadership": 85,
+      "politics": 85,
+      "intelligence": 88,
+      "starting_daimyo": 6
+    }
+  ]
+}

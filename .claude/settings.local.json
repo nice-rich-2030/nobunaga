@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(for dir in core models systems ai ui utils)",
+      "Bash(do touch \"$dir/__init__.py\")",
+      "Bash(done)",
+      "Bash(python main.py:*)",
+      "Bash(timeout /t 5 /nobreak)"
+    ]
+  }
+}

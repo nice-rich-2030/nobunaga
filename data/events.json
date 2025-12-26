@@ -1,0 +1,316 @@
+{
+  "events": [
+    {
+      "id": "flood_01",
+      "type": "natural_disaster",
+      "name": "洪水",
+      "description": "{province_name}で大雨による洪水が発生しました",
+      "probability": 0.05,
+      "season_restriction": ["夏"],
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {
+        "rice_multiplier": 0.7,
+        "peasant_loss": -100,
+        "loyalty_change": -10
+      },
+      "mitigation": {
+        "attribute": "flood_control",
+        "threshold": 80,
+        "reduction_factor": 0.5
+      },
+      "choices": []
+    },
+    {
+      "id": "drought_01",
+      "type": "natural_disaster",
+      "name": "干ばつ",
+      "description": "{province_name}で深刻な水不足が発生しました",
+      "probability": 0.03,
+      "season_restriction": ["夏", "秋"],
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {
+        "rice_multiplier": 0.6,
+        "loyalty_change": -15
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "earthquake_01",
+      "type": "natural_disaster",
+      "name": "地震",
+      "description": "{province_name}で大地震が発生しました",
+      "probability": 0.02,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {
+        "peasant_loss": -100,
+        "soldier_loss": -50,
+        "town_level": -1
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "typhoon_01",
+      "type": "natural_disaster",
+      "name": "台風",
+      "description": "{province_name}で台風による被害が発生しました",
+      "probability": 0.04,
+      "season_restriction": ["夏", "秋"],
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {
+        "rice_multiplier": 0.75,
+        "peasant_loss": -75
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "epidemic_01",
+      "type": "natural_disaster",
+      "name": "疫病",
+      "description": "{province_name}で疫病が発生しました",
+      "probability": 0.03,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {
+        "peasant_loss": -200,
+        "soldier_loss": -50,
+        "loyalty_change": -5
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "good_harvest_01",
+      "type": "economic",
+      "name": "豊作",
+      "description": "{province_name}で豊作に恵まれました！",
+      "probability": 0.10,
+      "season_restriction": ["秋"],
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {
+        "rice_multiplier": 1.5,
+        "loyalty_change": 5
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "bad_harvest_01",
+      "type": "economic",
+      "name": "凶作",
+      "description": "{province_name}で凶作に見舞われました",
+      "probability": 0.05,
+      "season_restriction": ["秋"],
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {
+        "rice_multiplier": 0.8,
+        "loyalty_change": -5
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "commerce_boom_01",
+      "type": "economic",
+      "name": "商業繁栄",
+      "description": "{province_name}で商業が繁栄しています",
+      "probability": 0.05,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {
+        "town_level_min": 3
+      },
+      "effects": {
+        "gold": 300
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "population_growth_01",
+      "type": "economic",
+      "name": "人口増加",
+      "description": "{province_name}で人口が増加しました",
+      "probability": 0.07,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {
+        "peasant_loyalty_min": 80
+      },
+      "effects": {
+        "peasants": 150
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "tax_increase_01",
+      "type": "economic",
+      "name": "税収増加",
+      "description": "{province_name}で税収が増加しました",
+      "probability": 0.06,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {
+        "town_level_min": 2
+      },
+      "effects": {
+        "gold": 250
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "inflation_01",
+      "type": "economic",
+      "name": "物価上昇",
+      "description": "{province_name}で物価が上昇しました",
+      "probability": 0.04,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {
+        "gold": -200,
+        "loyalty_change": -5
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "rebellion_01",
+      "type": "social",
+      "name": "一揆",
+      "description": "{province_name}で農民が反乱を起こしました！",
+      "probability": 0.0,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {
+        "peasant_loyalty_max": 30
+      },
+      "effects": {
+        "soldier_loss_percent": -0.2,
+        "gold": -300,
+        "rice": -300
+      },
+      "mitigation": {},
+      "choices": [
+        {
+          "id": "suppress",
+          "text": "武力鎮圧（金200）",
+          "cost": {"gold": 200},
+          "effect": {"loyalty_change": -5}
+        },
+        {
+          "id": "appease",
+          "text": "米を配布（米150）",
+          "cost": {"rice": 150},
+          "effect": {"loyalty_change": 10}
+        }
+      ]
+    },
+    {
+      "id": "noble_support_01",
+      "type": "social",
+      "name": "豪族の協力",
+      "description": "{province_name}で豪族が協力を申し出ました",
+      "probability": 0.05,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {
+        "peasant_loyalty_min": 70
+      },
+      "effects": {
+        "gold": 200,
+        "soldiers": 50
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "crime_wave_01",
+      "type": "social",
+      "name": "治安悪化",
+      "description": "{province_name}で治安が悪化しました",
+      "probability": 0.04,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {
+        "soldiers_max": 100
+      },
+      "effects": {
+        "gold": -150,
+        "loyalty_change": -8
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "general_recruit_01",
+      "type": "military",
+      "name": "武将仕官",
+      "description": "{province_name}に優秀な武将が仕官を希望しています",
+      "probability": 0.03,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {},
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "morale_boost_01",
+      "type": "military",
+      "name": "兵の士気向上",
+      "description": "{province_name}で兵の士気が向上しました",
+      "probability": 0.06,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {
+        "loyalty_change": 5
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "diplomatic_gift_01",
+      "type": "diplomatic",
+      "name": "他国からの贈物",
+      "description": "{province_name}に友好国から贈物が届きました",
+      "probability": 0.02,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {
+        "gold": 300
+      },
+      "mitigation": {},
+      "choices": []
+    },
+    {
+      "id": "border_conflict_01",
+      "type": "diplomatic",
+      "name": "国境紛争",
+      "description": "{province_name}で国境紛争が発生しました",
+      "probability": 0.03,
+      "season_restriction": null,
+      "terrain_restriction": null,
+      "trigger_conditions": {},
+      "effects": {
+        "soldier_loss": -30
+      },
+      "mitigation": {},
+      "choices": []
+    }
+  ]
+}

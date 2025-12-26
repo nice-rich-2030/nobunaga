@@ -1,0 +1,82 @@
+{
+  "daimyo": [
+    {
+      "id": 1,
+      "name": "信長",
+      "clan": "織田",
+      "age": 26,
+      "health": 95,
+      "ambition": 95,
+      "luck": 70,
+      "charm": 65,
+      "intelligence": 90,
+      "war_skill": 85,
+      "starting_province": 1
+    },
+    {
+      "id": 2,
+      "name": "道三",
+      "clan": "斎藤",
+      "age": 55,
+      "health": 70,
+      "ambition": 80,
+      "luck": 60,
+      "charm": 50,
+      "intelligence": 85,
+      "war_skill": 75,
+      "starting_province": 2
+    },
+    {
+      "id": 3,
+      "name": "謙信",
+      "clan": "上杉",
+      "age": 28,
+      "health": 90,
+      "ambition": 70,
+      "luck": 65,
+      "charm": 75,
+      "intelligence": 80,
+      "war_skill": 98,
+      "starting_province": 7
+    },
+    {
+      "id": 4,
+      "name": "信玄",
+      "clan": "武田",
+      "age": 38,
+      "health": 85,
+      "ambition": 85,
+      "luck": 60,
+      "charm": 70,
+      "intelligence": 90,
+      "war_skill": 95,
+      "starting_province": 14
+    },
+    {
+      "id": 5,
+      "name": "元就",
+      "clan": "毛利",
+      "age": 62,
+      "health": 75,
+      "ambition": 75,
+      "luck": 80,
+      "charm": 80,
+      "intelligence": 95,
+      "war_skill": 80,
+      "starting_province": 15
+    },
+    {
+      "id": 6,
+      "name": "義元",
+      "clan": "今川",
+      "age": 40,
+      "health": 80,
+      "ambition": 70,
+      "luck": 50,
+      "charm": 65,
+      "intelligence": 75,
+      "war_skill": 70,
+      "starting_province": 8
+    }
+  ]
+}

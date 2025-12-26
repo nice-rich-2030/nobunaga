@@ -1,0 +1,239 @@
+"""
+CombatSystem - 戦闘システム
+戦闘解決とダメージ計算
+"""
+import random
+from typing import Optional, Dict, List
+from models.province import Province
+from models.army import Army
+from models.general import General
+import config
+
+
+class BattleResult:
+    """戦闘結果クラス"""
+
+    def __init__(self):
+        self.attacker_won = False
+        self.attacker_casualties = 0
+        self.defender_casualties = 0
+        self.attacker_remaining = 0
+        self.defender_remaining = 0
+        self.province_captured = False
+        self.battle_log: List[str] = []
+
+
+class CombatSystem:
+    """戦闘システムクラス"""
+
+    def __init__(self, game_state):
+        self.game_state = game_state
+
+    def resolve_battle(
+        self,
+        attacker_army: Army,
+        defender_province: Province
+    ) -> BattleResult:
+        """戦闘を解決（自動戦闘）"""
+        result = BattleResult()
+
+        # 攻撃側の戦力計算
+        attacker_general = None
+        if attacker_army.general_id:
+            attacker_general = self.game_state.get_general(attacker_army.general_id)
+
+        attacker_power = self._calculate_army_power(attacker_army, attacker_general)
+
+        # 防御側の戦力計算
+        defender_general = None
+        if defender_province.governor_general_id:
+            defender_general = self.game_state.get_general(defender_province.governor_general_id)
+
+        defender_power = self._calculate_defender_power(defender_province, defender_general)
+
+        # 戦闘ラウンド数（最大10ラウンド）
+        max_rounds = 10
+        attacker_troops = attacker_army.total_troops
+        defender_troops = defender_province.soldiers
+
+        for round_num in range(1, max_rounds + 1):
+            # 双方のダメージ計算
+            # damage_to_XXX = XXXが受けるダメージ
+            damage_to_attacker = self._calculate_damage(defender_power, defender_troops)  # 守備側→攻撃側
+            damage_to_defender = self._calculate_damage(attacker_power, attacker_troops)  # 攻撃側→守備側
+
+            # 城防御ボーナス（守備側の攻撃力が増加）
+            damage_to_attacker = int(damage_to_attacker * defender_province.get_defense_bonus())
+
+            # ダメージ適用
+            defender_casualties = min(damage_to_defender, defender_troops)
+            attacker_casualties = min(damage_to_attacker, attacker_troops)
+
+            defender_troops -= defender_casualties
+            attacker_troops -= attacker_casualties
+
+            # 勝敗判定
+            if defender_troops <= 0:
+                result.attacker_won = True
+                break
+            elif attacker_troops <= 0:
+                result.attacker_won = False
+                break
+
+            # 士気による撤退判定
+            if attacker_troops < attacker_army.total_troops * 0.3:
+                if random.random() < 0.3:  # 30%の確率で撤退
+                    result.attacker_won = False
+                    break
+
+        # 結果を記録
+        result.attacker_casualties = attacker_army.total_troops - attacker_troops
+        result.defender_casualties = defender_province.soldiers - defender_troops
+        result.attacker_remaining = max(0, attacker_troops)
+        result.defender_remaining = max(0, defender_troops)
+
+        # 戦闘結果サマリー
+        if result.attacker_won:
+            result.battle_log.append(f"⚔ 攻撃軍が勝利！（損失{result.attacker_casualties}人、残存{result.attacker_remaining}人）")
+            result.battle_log.append(f"   守備軍は壊滅（損失{result.defender_casualties}人）")
+        else:
+            result.battle_log.append(f"🛡 守備軍が勝利！（損失{result.defender_casualties}人、残存{result.defender_remaining}人）")
+            result.battle_log.append(f"   攻撃軍は撤退（損失{result.attacker_casualties}人）")
+
+        # 領地占領
+        if result.attacker_won and defender_troops <= 0:
+            result.province_captured = True
+            result.battle_log.append(f"★ {defender_province.name}を占領！")
+
+        return result
+
+    def apply_battle_result(
+        self,
+        result: BattleResult,
+        attacker_army: Army,
+        defender_province: Province
+    ):
+        """戦闘結果を適用"""
+        # 守備側の兵士を更新
+        defender_province.soldiers = result.defender_remaining
+
+        # 攻撃側の軍を更新
+        remaining_ratio = result.attacker_remaining / attacker_army.total_troops if attacker_army.total_troops > 0 else 0
+        attacker_army.infantry = int(attacker_army.infantry * remaining_ratio)
+
+        # 士気の更新
+        if result.attacker_won:
+            attacker_army.update_morale(config.MORALE_VICTORY_BOOST)
+            defender_province.update_morale(config.MORALE_DEFEAT_PENALTY)
+        else:
+            attacker_army.update_morale(config.MORALE_DEFEAT_PENALTY)
+            defender_province.update_morale(config.MORALE_VICTORY_BOOST)
+
+        # 領地占領処理
+        if result.province_captured:
+            self._capture_province(attacker_army, defender_province)
+
+    def _capture_province(self, attacker_army: Army, province: Province):
+        """領地を占領"""
+        old_owner = province.owner_daimyo_id
+        new_owner = attacker_army.daimyo_id
+
+        # 守将を討ち取る（敗北した将軍は殺される）
+        if province.governor_general_id:
+            general_id = province.governor_general_id
+            if general_id in self.game_state.generals:
+                del self.game_state.generals[general_id]
+            province.governor_general_id = None
+
+        # 旧所有者から削除
+        if old_owner:
+            old_daimyo = self.game_state.get_daimyo(old_owner)
+            if old_daimyo:
+                old_daimyo.remove_province(province.id)
+
+        # 新所有者に追加
+        new_daimyo = self.game_state.get_daimyo(new_owner)
+        if new_daimyo:
+            new_daimyo.add_province(province.id)
+
+        # 領地の所有者を変更
+        province.owner_daimyo_id = new_owner
+
+        # 占領軍を駐留
+        province.soldiers = attacker_army.total_troops
+        province.soldier_morale = attacker_army.morale
+
+        # 忠誠度低下（占領されたため）
+        province.peasant_loyalty = max(20, province.peasant_loyalty - 30)
+
+        # 軍を解散（領地に駐留）
+        if attacker_army.id in self.game_state.armies:
+            del self.game_state.armies[attacker_army.id]
+
+    def _calculate_army_power(self, army: Army, general: Optional[General]) -> int:
+        """軍の戦力を計算"""
+        general_bonus = 1.0
+        if general:
+            general_bonus = general.get_combat_bonus()
+
+        base_power = army.calculate_combat_power(general_bonus)
+
+        # 攻撃側ペナルティ（遠征による士気低下）
+        # 攻撃側は城壁がなく、補給線が伸びているため戦力が0.8倍になる
+        expedition_penalty = 0.8
+        base_power = int(base_power * expedition_penalty)
+
+        return base_power
+
+    def _calculate_defender_power(self, province: Province, general: Optional[General]) -> int:
+        """防御側の戦力を計算"""
+        base_power = province.get_combat_power()
+
+        # 武将ボーナス
+        if general:
+            base_power = int(base_power * general.get_combat_bonus())
+
+        return base_power
+
+    def _calculate_damage(self, power: int, troop_count: int) -> int:
+        """ダメージを計算"""
+        # 基本ダメージ = 戦力の10-20%（ランダム要素）
+        damage_ratio = 0.10 + random.random() * 0.10
+        damage = int(power * damage_ratio)
+
+        # 最低1、最大でも相手の兵力まで
+        return max(1, min(damage, troop_count))
+
+    def predict_battle_outcome(
+        self,
+        attacker_army: Army,
+        defender_province: Province
+    ) -> dict:
+        """戦闘の予測結果を返す（実際には実行しない）"""
+        attacker_general = None
+        if attacker_army.general_id:
+            attacker_general = self.game_state.get_general(attacker_army.general_id)
+
+        defender_general = None
+        if defender_province.governor_general_id:
+            defender_general = self.game_state.get_general(defender_province.governor_general_id)
+
+        attacker_power = self._calculate_army_power(attacker_army, attacker_general)
+        defender_power = self._calculate_defender_power(defender_province, defender_general)
+
+        # 防御ボーナスを考慮
+        defender_power = int(defender_power * defender_province.get_defense_bonus())
+
+        # 勝率計算（簡易版）
+        total_power = attacker_power + defender_power
+        if total_power > 0:
+            win_probability = attacker_power / total_power
+        else:
+            win_probability = 0.5
+
+        return {
+            "attacker_power": attacker_power,
+            "defender_power": defender_power,
+            "win_probability": win_probability,
+            "recommendation": "攻撃推奨" if win_probability > 0.6 else "慎重に" if win_probability > 0.4 else "撤退推奨"
+        }

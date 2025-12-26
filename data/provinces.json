@@ -1,0 +1,139 @@
+{
+  "provinces": [
+    {
+      "id": 1,
+      "name": "尾張",
+      "position": [200, 300],
+      "adjacent": [2, 5],
+      "terrain": "plains",
+      "max_peasants": 10000,
+      "has_castle": true
+    },
+    {
+      "id": 2,
+      "name": "美濃",
+      "position": [300, 250],
+      "adjacent": [1, 3, 5, 6],
+      "terrain": "plains",
+      "max_peasants": 9000,
+      "has_castle": true
+    },
+    {
+      "id": 3,
+      "name": "越前",
+      "position": [350, 200],
+      "adjacent": [2, 4, 6],
+      "terrain": "mountains",
+      "max_peasants": 7000,
+      "has_castle": true
+    },
+    {
+      "id": 4,
+      "name": "加賀",
+      "position": [400, 180],
+      "adjacent": [3, 7],
+      "terrain": "mountains",
+      "max_peasants": 6500,
+      "has_castle": true
+    },
+    {
+      "id": 5,
+      "name": "三河",
+      "position": [250, 350],
+      "adjacent": [1, 2, 8],
+      "terrain": "plains",
+      "max_peasants": 8500,
+      "has_castle": true
+    },
+    {
+      "id": 6,
+      "name": "近江",
+      "position": [350, 300],
+      "adjacent": [2, 3, 9, 10],
+      "terrain": "plains",
+      "max_peasants": 9500,
+      "has_castle": true
+    },
+    {
+      "id": 7,
+      "name": "越後",
+      "position": [450, 150],
+      "adjacent": [4, 11],
+      "terrain": "mountains",
+      "max_peasants": 7500,
+      "has_castle": true
+    },
+    {
+      "id": 8,
+      "name": "遠江",
+      "position": [200, 400],
+      "adjacent": [5, 9],
+      "terrain": "coastal",
+      "max_peasants": 8000,
+      "has_castle": true
+    },
+    {
+      "id": 9,
+      "name": "伊勢",
+      "position": [300, 400],
+      "adjacent": [6, 8, 10],
+      "terrain": "coastal",
+      "max_peasants": 8500,
+      "has_castle": true
+    },
+    {
+      "id": 10,
+      "name": "山城",
+      "position": [400, 350],
+      "adjacent": [6, 9, 12, 13],
+      "terrain": "plains",
+      "max_peasants": 11000,
+      "has_castle": true
+    },
+    {
+      "id": 11,
+      "name": "信濃",
+      "position": [500, 200],
+      "adjacent": [7, 14],
+      "terrain": "mountains",
+      "max_peasants": 8000,
+      "has_castle": true
+    },
+    {
+      "id": 12,
+      "name": "摂津",
+      "position": [410, 450],
+      "adjacent": [10, 13],
+      "terrain": "coastal",
+      "max_peasants": 10000,
+      "has_castle": true
+    },
+    {
+      "id": 13,
+      "name": "播磨",
+      "position": [500, 450],
+      "adjacent": [10, 12, 15],
+      "terrain": "plains",
+      "max_peasants": 8500,
+      "has_castle": true
+    },
+    {
+      "id": 14,
+      "name": "甲斐",
+      "position": [550, 250],
+      "adjacent": [11, 15],
+      "terrain": "mountains",
+      "max_peasants": 7000,
+      "has_castle": true
+    },
+    {
+      "id": 15,
+      "name": "備前",
+      "position": [550, 500],
+      "adjacent": [13, 14],
+      "terrain": "coastal",
+      "max_peasants": 8000,
+      "has_castle": true
+    }
+  ]
+}
