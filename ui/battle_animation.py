@@ -10,9 +10,10 @@ from typing import Optional
 class BattleAnimationScreen:
     """戦闘演出画面（テキスト＋図形ベース）"""
 
-    def __init__(self, screen, font):
+    def __init__(self, screen, font, image_manager):
         self.screen = screen
         self.font = font
+        self.image_manager = image_manager
         self.title_font = pygame.font.SysFont('meiryo', 28, bold=True)
         self.large_font = pygame.font.SysFont('meiryo', 24, bold=True)
 
@@ -168,16 +169,45 @@ class BattleAnimationScreen:
             self.on_finish_callback = None
             callback()
 
+    def _draw_phase_background(self, phase: int):
+        """フェーズに応じた背景画像を描画
+
+        Args:
+            phase: 0=準備, 1=開始, 2=進行, 3=結果
+        """
+        # フェーズごとの背景画像マッピング
+        background_map = {
+            0: "battle_vs_background.png",      # 準備フェーズ
+            1: "battle_vs_background.png",      # 開始フェーズ（準備と同じ）
+            2: "battle_combat_background.png",  # 進行フェーズ
+            3: "battle_result_background.png"   # 結果フェーズ
+        }
+
+        bg_name = background_map.get(phase, "battle_combat_background.png")
+        battle_bg = self.image_manager.load_background(bg_name)
+
+        if battle_bg:
+            # 背景画像を描画
+            self.screen.blit(battle_bg, (0, 0))
+            # テキストコントラストのため薄暗いオーバーレイ
+            overlay = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
+            overlay.set_alpha(80)
+            overlay.fill((0, 0, 0))
+            self.screen.blit(overlay, (0, 0))
+        else:
+            # フォールバック：従来の半透明オーバーレイ
+            overlay = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
+            overlay.set_alpha(220)
+            overlay.fill(self.bg_color)
+            self.screen.blit(overlay, (0, 0))
+
     def draw(self):
         """戦闘演出を描画"""
         if not self.is_visible or not self.battle_data:
             return
 
-        # 半透明オーバーレイ
-        overlay = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
-        overlay.set_alpha(220)
-        overlay.fill(self.bg_color)
-        self.screen.blit(overlay, (0, 0))
+        # フェーズに応じた背景を描画
+        self._draw_phase_background(self.animation_phase)
 
         # シェイクオフセット適用
         offset_x = self.shake_offset if self.animation_phase == 2 else 0
@@ -214,51 +244,82 @@ class BattleAnimationScreen:
 
     def _draw_preparation(self):
         """準備フェーズの描画"""
-        y_offset = 120
+        portrait_size = (220, 220)
 
-        # 領地名と大名名
-        attacker_text = f"{self.battle_data['attacker_province']} ({self.battle_data['attacker_name']})"
-        defender_text = f"{self.battle_data['defender_province']} ({self.battle_data['defender_name']})"
+        # 攻撃側の肖像画
+        attacker_general_id = self.battle_data.get("attacker_general_id")
+        attacker_daimyo_id = self.battle_data.get("attacker_daimyo_id", 1)
+        attacker_portrait = self.image_manager.get_portrait_for_battle(
+            attacker_general_id, attacker_daimyo_id, portrait_size
+        )
+        self.screen.blit(attacker_portrait, (80, 150))
+        pygame.draw.rect(self.screen, self.border_color, (80, 150, 220, 220), 3)
 
-        attacker_surface = self.large_font.render(attacker_text, True, self.attacker_color)
-        defender_surface = self.large_font.render(defender_text, True, self.defender_color)
+        # 防御側の肖像画
+        defender_general_id = self.battle_data.get("defender_general_id")
+        defender_daimyo_id = self.battle_data.get("defender_daimyo_id", 1)
+        defender_portrait = self.image_manager.get_portrait_for_battle(
+            defender_general_id, defender_daimyo_id, portrait_size
+        )
+        self.screen.blit(defender_portrait, (980, 150))
+        pygame.draw.rect(self.screen, self.border_color, (980, 150, 220, 220), 3)
 
-        self.screen.blit(attacker_surface, (100, y_offset))
-        self.screen.blit(defender_surface, (config.SCREEN_WIDTH - 400, y_offset))
-
-        # VS
+        # VS テキスト（中央）
         vs_surface = self.title_font.render("VS", True, self.gold_color)
         vs_x = (config.SCREEN_WIDTH - vs_surface.get_width()) // 2
-        self.screen.blit(vs_surface, (vs_x, y_offset + 80))
+        self.screen.blit(vs_surface, (vs_x, 260))
 
-        # 兵力表示
-        y_offset += 180
+        # 攻撃側の情報（肖像画の下）
+        text_y = 380
+        attacker_text = f"{self.battle_data['attacker_province']}"
+        attacker_surface = self.large_font.render(attacker_text, True, self.attacker_color)
+        self.screen.blit(attacker_surface, (80, text_y))
+
+        text_y += 30
+        daimyo_text = f"{self.battle_data['attacker_name']}"
+        self.screen.blit(self.font.render(daimyo_text, True, self.text_color), (80, text_y))
+
+        text_y += 30
         attacker_troops_text = f"兵力: {self.battle_data['attacker_troops']}"
-        defender_troops_text = f"兵力: {self.battle_data['defender_troops']}"
+        self.screen.blit(self.font.render(attacker_troops_text, True, self.text_color), (80, text_y))
 
-        self.screen.blit(self.font.render(attacker_troops_text, True, self.text_color), (100, y_offset))
-        self.screen.blit(self.font.render(defender_troops_text, True, self.text_color), (config.SCREEN_WIDTH - 400, y_offset))
-
-        # 武将表示
+        # 武将情報
         if self.battle_data.get("attacker_general"):
+            text_y += 30
             general_text = f"武将: {self.battle_data['attacker_general']}"
-            self.screen.blit(self.font.render(general_text, True, self.gold_color), (100, y_offset + 30))
+            self.screen.blit(self.font.render(general_text, True, self.gold_color), (80, text_y))
 
-            # 将軍の能力値を表示
             attacker_general_obj = self.battle_data.get("attacker_general_obj")
             if attacker_general_obj:
-                stats_text = f"  武{attacker_general_obj.war_skill} 統{attacker_general_obj.leadership}"
-                self.screen.blit(self.font.render(stats_text, True, self.text_color), (100, y_offset + 55))
+                text_y += 25
+                stats_text = f"  武{attacker_general_obj.war_skill} 統{attacker_general_obj.leadership} 知{attacker_general_obj.intelligence}"
+                self.screen.blit(self.font.render(stats_text, True, self.text_color), (80, text_y))
 
+        # 防御側の情報（肖像画の下）
+        text_y = 380
+        defender_text = f"{self.battle_data['defender_province']}"
+        defender_surface = self.large_font.render(defender_text, True, self.defender_color)
+        self.screen.blit(defender_surface, (980, text_y))
+
+        text_y += 30
+        daimyo_text = f"{self.battle_data['defender_name']}"
+        self.screen.blit(self.font.render(daimyo_text, True, self.text_color), (980, text_y))
+
+        text_y += 30
+        defender_troops_text = f"兵力: {self.battle_data['defender_troops']}"
+        self.screen.blit(self.font.render(defender_troops_text, True, self.text_color), (980, text_y))
+
+        # 武将情報
         if self.battle_data.get("defender_general"):
+            text_y += 30
             general_text = f"武将: {self.battle_data['defender_general']}"
-            self.screen.blit(self.font.render(general_text, True, self.gold_color), (config.SCREEN_WIDTH - 400, y_offset + 30))
+            self.screen.blit(self.font.render(general_text, True, self.gold_color), (980, text_y))
 
-            # 将軍の能力値を表示
             defender_general_obj = self.battle_data.get("defender_general_obj")
             if defender_general_obj:
-                stats_text = f"  武{defender_general_obj.war_skill} 統{defender_general_obj.leadership}"
-                self.screen.blit(self.font.render(stats_text, True, self.text_color), (config.SCREEN_WIDTH - 400, y_offset + 55))
+                text_y += 25
+                stats_text = f"  武{defender_general_obj.war_skill} 統{defender_general_obj.leadership} 知{defender_general_obj.intelligence}"
+                self.screen.blit(self.font.render(stats_text, True, self.text_color), (980, text_y))
 
     def _draw_battle_start(self):
         """戦闘開始フェーズの描画"""
@@ -274,10 +335,21 @@ class BattleAnimationScreen:
 
     def _draw_battle_progress(self, offset_x):
         """戦闘進行中の描画"""
-        # 攻撃側（左側）
+        portrait_size = (120, 120)
+
+        # 攻撃側の肖像画（左側）
+        attacker_general_id = self.battle_data.get("attacker_general_id")
+        attacker_daimyo_id = self.battle_data.get("attacker_daimyo_id", 1)
+        attacker_portrait = self.image_manager.get_portrait_for_battle(
+            attacker_general_id, attacker_daimyo_id, portrait_size
+        )
+        self.screen.blit(attacker_portrait, (60 + offset_x, 120))
+        pygame.draw.rect(self.screen, self.border_color, (60 + offset_x, 120, 120, 120), 2)
+
+        # 攻撃側のステータス（肖像の右側）
         self._draw_army_status(
-            100 + offset_x,
-            150,
+            195 + offset_x,
+            120,
             self.battle_data['attacker_name'],
             self.battle_data['attacker_province'],
             self.battle_data['attacker_troops'],
@@ -286,10 +358,10 @@ class BattleAnimationScreen:
             is_attacker=True
         )
 
-        # 守備側（右側）
+        # 防御側のステータス（左側に配置）
         self._draw_army_status(
-            config.SCREEN_WIDTH - 400 - offset_x,
-            150,
+            540 - offset_x,
+            120,
             self.battle_data['defender_name'],
             self.battle_data['defender_province'],
             self.battle_data['defender_troops'],
@@ -297,6 +369,15 @@ class BattleAnimationScreen:
             self.defender_color,
             is_attacker=False
         )
+
+        # 防御側の肖像画（右側）
+        defender_general_id = self.battle_data.get("defender_general_id")
+        defender_daimyo_id = self.battle_data.get("defender_daimyo_id", 1)
+        defender_portrait = self.image_manager.get_portrait_for_battle(
+            defender_general_id, defender_daimyo_id, portrait_size
+        )
+        self.screen.blit(defender_portrait, (1100 - offset_x, 120))
+        pygame.draw.rect(self.screen, self.border_color, (1100 - offset_x, 120, 120, 120), 2)
 
         # 中央に刀のアイコン（交戦表現）
         center_x = config.SCREEN_WIDTH // 2
@@ -366,29 +447,37 @@ class BattleAnimationScreen:
             return
 
         result = self.battle_data["result"]
-        y_offset = 120
+        portrait_size = (180, 180)
 
-        # 勝敗表示（勝った側に表示）
+        # 勝敗表示（中央上部）
+        y_offset = 80
         if result.attacker_won:
             winner_text = f"⚔ {self.battle_data['attacker_name']} の勝利！ ⚔"
             winner_color = self.attacker_color
-            winner_x = 100  # 左側（攻撃側）に表示
         else:
             winner_text = f"🛡 {self.battle_data['defender_name']} の勝利！ 🛡"
             winner_color = self.defender_color
-            winner_x = config.SCREEN_WIDTH - 500  # 右側（守備側）に表示
 
-        winner_surface = self.title_font.render(winner_text, True, winner_color)
+        winner_surface = self.title_font.render(winner_text, True, self.gold_color)
+        winner_x = (config.SCREEN_WIDTH - winner_surface.get_width()) // 2
         self.screen.blit(winner_surface, (winner_x, y_offset))
 
-        # 区切り線
-        pygame.draw.line(self.screen, self.border_color,
-                        (100, y_offset + 50), (config.SCREEN_WIDTH - 100, y_offset + 50), 2)
+        y_offset = 170
 
-        # 戦果詳細
-        y_offset += 80
+        # 攻撃側の肖像画
+        attacker_general_id = self.battle_data.get("attacker_general_id")
+        attacker_daimyo_id = self.battle_data.get("attacker_daimyo_id", 1)
+        attacker_portrait = self.image_manager.get_portrait_for_battle(
+            attacker_general_id, attacker_daimyo_id, portrait_size
+        )
+        self.screen.blit(attacker_portrait, (100, y_offset))
 
-        # 攻撃側
+        # 勝者に金色の枠、敗者に通常枠
+        attacker_border_color = self.gold_color if result.attacker_won else self.border_color
+        attacker_border_width = 4 if result.attacker_won else 2
+        pygame.draw.rect(self.screen, attacker_border_color, (100, y_offset, 180, 180), attacker_border_width)
+
+        # 攻撃側の結果（肖像の右側）
         attacker_result = [
             f"【{self.battle_data['attacker_name']}】",
             f"初期兵力: {self.battle_data['attacker_troops']:,}",
@@ -396,12 +485,13 @@ class BattleAnimationScreen:
             f"残存兵力: {result.attacker_remaining:,}"
         ]
 
+        text_x = 300
         for i, line in enumerate(attacker_result):
             color = self.attacker_color if i == 0 else self.text_color
             surface = self.font.render(line, True, color)
-            self.screen.blit(surface, (150, y_offset + i * 30))
+            self.screen.blit(surface, (text_x, y_offset + i * 30))
 
-        # 守備側
+        # 防御側の結果（左側）
         defender_result = [
             f"【{self.battle_data['defender_name']}】",
             f"初期兵力: {self.battle_data['defender_troops']:,}",
@@ -409,14 +499,28 @@ class BattleAnimationScreen:
             f"残存兵力: {result.defender_remaining:,}"
         ]
 
+        text_x = 540
         for i, line in enumerate(defender_result):
             color = self.defender_color if i == 0 else self.text_color
             surface = self.font.render(line, True, color)
-            self.screen.blit(surface, (config.SCREEN_WIDTH - 400, y_offset + i * 30))
+            self.screen.blit(surface, (text_x, y_offset + i * 30))
 
-        # 領地占領
+        # 防御側の肖像画（右側）
+        defender_general_id = self.battle_data.get("defender_general_id")
+        defender_daimyo_id = self.battle_data.get("defender_daimyo_id", 1)
+        defender_portrait = self.image_manager.get_portrait_for_battle(
+            defender_general_id, defender_daimyo_id, portrait_size
+        )
+        self.screen.blit(defender_portrait, (820, y_offset))
+
+        # 勝者に金色の枠、敗者に通常枠
+        defender_border_color = self.gold_color if not result.attacker_won else self.border_color
+        defender_border_width = 4 if not result.attacker_won else 2
+        pygame.draw.rect(self.screen, defender_border_color, (820, y_offset, 180, 180), defender_border_width)
+
+        # 領地占領メッセージ（中央）
         if result.province_captured:
-            y_offset += 150
+            y_offset = 400
             capture_text = f"★ {self.battle_data['defender_province']} を占領！ ★"
             capture_surface = self.large_font.render(capture_text, True, self.gold_color)
             capture_x = (config.SCREEN_WIDTH - capture_surface.get_width()) // 2

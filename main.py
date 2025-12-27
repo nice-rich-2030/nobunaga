@@ -49,6 +49,12 @@ class Game:
         self.game_state = GameState()
         self.game_state.load_game_data()
 
+        # 画像管理の初期化
+        from utils.image_manager import ImageManager
+        assets_path = os.path.join(config.BASE_DIR, "assets")
+        self.image_manager = ImageManager(assets_path)
+        self.image_manager.preload_all_portraits()
+
         # ゲームシステムの初期化
         self.turn_manager = TurnManager(self.game_state)
         self.economy_system = EconomySystem(self.game_state)
@@ -129,13 +135,13 @@ class Game:
         self.event_history_screen = EventHistoryScreen(self.screen, self.font_medium)
 
         # 勢力マップ
-        self.power_map = PowerMap(self.screen, self.font_medium)
+        self.power_map = PowerMap(self.screen, self.font_medium, self.image_manager)
 
         # 戦闘プレビュー画面（勢力図を使うので後に初期化）
         self.battle_preview = BattlePreviewScreen(self.screen, self.font_medium, self.power_map)
 
         # 戦闘演出画面
-        self.battle_animation = BattleAnimationScreen(self.screen, self.font_medium)
+        self.battle_animation = BattleAnimationScreen(self.screen, self.font_medium, self.image_manager)
 
         # 転送ダイアログ
         self.transfer_dialog = TransferDialog(self.screen, self.font_medium)
@@ -811,7 +817,12 @@ class Game:
 
     def render(self):
         """画面の描画"""
-        self.screen.fill(config.UI_BG_COLOR)
+        # 背景画像を描画、なければ単色で塗りつぶし
+        main_bg = self.image_manager.load_background("main_background.png")
+        if main_bg:
+            self.screen.blit(main_bg, (0, 0))
+        else:
+            self.screen.fill(config.UI_BG_COLOR)
 
         if self.show_attack_selection:
             self.render_attack_selection()

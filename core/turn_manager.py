@@ -370,6 +370,10 @@ class TurnManager:
                 "defender_general": defender_general_name,
                 "attacker_general_obj": attacker_general,  # 将軍オブジェクト
                 "defender_general_obj": defender_general,  # 将軍オブジェクト
+                "attacker_general_id": army.general_id,  # 武将ID（肖像画表示用）
+                "defender_general_id": target_province.governor_general_id,  # 武将ID（肖像画表示用）
+                "attacker_daimyo_id": army.daimyo_id,  # 大名ID（肖像画フォールバック用）
+                "defender_daimyo_id": target_province.owner_daimyo_id,  # 大名ID（肖像画フォールバック用）
                 "result": result,
                 "messages": battle_messages,
                 # 結果適用のために必要なデータ

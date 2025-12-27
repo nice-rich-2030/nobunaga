@@ -10,9 +10,10 @@ from typing import Dict, List, Optional
 class PowerMap:
     """勢力マップ表示クラス"""
 
-    def __init__(self, screen, font):
+    def __init__(self, screen, font, image_manager):
         self.screen = screen
         self.font = font
+        self.image_manager = image_manager
         self.small_font = pygame.font.SysFont('meiryo', config.FONT_SIZE_MEDIUM)
 
         # マップ表示領域の設定（画面右側に配置）
@@ -100,9 +101,18 @@ class PowerMap:
 
     def draw(self, game_state):
         """勢力マップを描画"""
-        # 背景
-        pygame.draw.rect(self.screen, self.bg_color,
-                        (self.map_x, self.map_y, self.map_width, self.map_height))
+        # 背景画像を読み込んで描画、なければ単色で塗りつぶし
+        power_map_bg = self.image_manager.load_background("power_map_background.png")
+        if power_map_bg:
+            # 背景画像をマップ領域にスケール
+            scaled_bg = pygame.transform.scale(power_map_bg, (self.map_width, self.map_height))
+            self.screen.blit(scaled_bg, (self.map_x, self.map_y))
+        else:
+            # フォールバック: 単色背景
+            pygame.draw.rect(self.screen, self.bg_color,
+                            (self.map_x, self.map_y, self.map_width, self.map_height))
+
+        # 枠線（常に描画）
         pygame.draw.rect(self.screen, self.border_color,
                         (self.map_x, self.map_y, self.map_width, self.map_height), 2)
 
