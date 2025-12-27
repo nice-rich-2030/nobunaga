@@ -9,11 +9,12 @@ from models.diplomacy import RelationType
 class AISystem:
     """AIシステム"""
 
-    def __init__(self, game_state, internal_affairs, military_system, diplomacy_system):
+    def __init__(self, game_state, internal_affairs, military_system, diplomacy_system, transfer_system=None):
         self.game_state = game_state
         self.internal_affairs = internal_affairs
         self.military_system = military_system
         self.diplomacy_system = diplomacy_system
+        self.transfer_system = transfer_system
         self.turn_manager = None  # TurnManagerへの参照（main.pyから設定）
 
     def execute_ai_turn(self, daimyo_id):
@@ -53,26 +54,31 @@ class AISystem:
                 result = self.internal_affairs.execute_cultivation(province)
                 if result["success"]:
                     events.append(f"【{daimyo.clan_name}】{province.name}で開墾（開発Lv→{province.development_level}）")
+                    self.game_state.record_command(daimyo_id, province.id, "cultivate")
 
             elif action["type"] == "develop_town":
                 result = self.internal_affairs.execute_town_development(province)
                 if result["success"]:
                     events.append(f"【{daimyo.clan_name}】{province.name}で町開発（町Lv→{province.town_level}）")
+                    self.game_state.record_command(daimyo_id, province.id, "develop_town")
 
             elif action["type"] == "flood_control":
                 result = self.internal_affairs.execute_flood_control(province)
                 if result["success"]:
                     events.append(f"【{daimyo.clan_name}】{province.name}で治水（治水→{province.flood_control}%）")
+                    self.game_state.record_command(daimyo_id, province.id, "flood_control")
 
             elif action["type"] == "give_rice":
                 result = self.internal_affairs.execute_give_rice(province)
                 if result["success"]:
                     events.append(f"【{daimyo.clan_name}】{province.name}で米配布（忠誠度→{province.peasant_loyalty}）")
+                    self.game_state.record_command(daimyo_id, province.id, "give_rice")
 
             elif action["type"] == "recruit":
                 result = self.military_system.recruit_soldiers(province, 100)
                 if result["success"]:
                     events.append(f"【{daimyo.clan_name}】{province.name}で徴兵100人（兵力→{province.soldiers}人）")
+                    self.game_state.record_command(daimyo_id, province.id, "recruit")
 
             elif action["type"] == "attack":
                 target_province_id = action["target"]
@@ -96,6 +102,7 @@ class AISystem:
                         defender = self.game_state.get_daimyo(target_province.owner_daimyo_id)
                         defender_name = defender.clan_name if defender else "無所属"
                         events.append(f"【{daimyo.clan_name}】{province.name}から{defender_name}の{target_province.name}へ出陣（兵力{attack_force}人）")
+                        self.game_state.record_command(daimyo_id, province.id, "attack")
 
             elif action["type"] == "transfer":
                 # 転送コマンドを実行
@@ -104,13 +111,47 @@ class AISystem:
                 amount = action["amount"]
                 target_province = self.game_state.get_province(target_province_id)
 
-                if target_province:
-                    result = self.internal_affairs.transfer_resources(
-                        province, target_province, resource_type, amount
-                    )
-                    if result["success"]:
-                        resource_names = {"gold": "金", "rice": "米", "soldiers": "兵"}
-                        events.append(f"【{daimyo.clan_name}】{province.name}から{target_province.name}へ{resource_names[resource_type]}{amount}を転送")
+                # デバッグログ
+                debug = self.game_state.get_player_daimyo() is None
+                if debug:
+                    print(f"[TRANSFER EXECUTE] {daimyo.clan_name} {province.name} → {target_province.name if target_province else 'None'}")
+                    print(f"[TRANSFER EXECUTE]   resource={resource_type}, amount={amount}")
+                    print(f"[TRANSFER EXECUTE]   転送元兵力={province.soldiers}")
+                    if target_province:
+                        print(f"[TRANSFER EXECUTE]   転送先兵力={target_province.soldiers}")
+
+                if target_province and self.transfer_system:
+                    # resource_typeに応じて適切なメソッドを呼び出す
+                    if resource_type == "soldiers":
+                        result = self.transfer_system.transfer_soldiers(province.id, target_province.id, amount)
+                    elif resource_type == "gold":
+                        result = self.transfer_system.transfer_gold(province.id, target_province.id, amount)
+                    elif resource_type == "rice":
+                        result = self.transfer_system.transfer_rice(province.id, target_province.id, amount)
+                    else:
+                        if debug:
+                            print(f"[TRANSFER EXECUTE]   ✗ 不明なリソースタイプ")
+                        continue
+
+                    if debug:
+                        print(f"[TRANSFER EXECUTE]   result.success={result.success}")
+                        if not result.success:
+                            print(f"[TRANSFER EXECUTE]   ✗ 失敗理由: {result.message}")
+                        else:
+                            print(f"[TRANSFER EXECUTE]   ✓ 成功: {result.message}")
+
+                    if result.success:
+                        events.append(f"【{daimyo.clan_name}】{result.message}")
+                        # コマンド実行統計を記録
+                        if resource_type == "soldiers":
+                            self.game_state.record_command(daimyo_id, province.id, "transfer_soldiers")
+                        elif resource_type == "gold":
+                            self.game_state.record_command(daimyo_id, province.id, "transfer_gold")
+                        elif resource_type == "rice":
+                            self.game_state.record_command(daimyo_id, province.id, "transfer_rice")
+                else:
+                    if debug:
+                        print(f"[TRANSFER EXECUTE]   ✗ target_province={target_province is not None}, transfer_system={self.transfer_system is not None}")
 
         return events
 
@@ -162,6 +203,9 @@ class AISystem:
         for category, weight in weights.items():
             cumulative += weight
             if rand < cumulative:
+                # デバッグログ
+                if self.game_state.get_player_daimyo() is None:  # 全AI操作モード
+                    print(f"[AI DEBUG] {daimyo.clan_name} {province.name}: カテゴリ={category} (重み={weights})")
                 return category
 
         return "internal"
@@ -221,13 +265,20 @@ class AISystem:
     def _decide_transfer_action(self, province, daimyo):
         """転送コマンドの具体的内容を決定"""
 
-        # 転送先候補を探す（敵に隣接している自領地）
+        # デバッグログ
+        debug = self.game_state.get_player_daimyo() is None
+
+        # 転送先候補を探す（隣接している敵に隣接している自領地）
         transfer_targets = []
         for other_province in self.game_state.provinces.values():
             if other_province.owner_daimyo_id != daimyo.id:
                 continue
 
             if other_province.id == province.id:
+                continue
+
+            # 【重要】隣接チェック - TransferSystemの制約に従う
+            if other_province.id not in province.adjacent_provinces:
                 continue
 
             # 敵に隣接しているか
@@ -243,29 +294,96 @@ class AISystem:
 
                 transfer_targets.append((other_province, priority))
 
+        if debug:
+            print(f"[TRANSFER DEBUG] {daimyo.clan_name} {province.name}: 転送先候補={len(transfer_targets)}件 (隣接のみ)")
+
         if not transfer_targets:
+            if debug:
+                print(f"[TRANSFER DEBUG] → 転送先なし（国境領地なし）")
             return {"type": "none"}
 
         # 最優先の転送先を選択
         transfer_targets.sort(key=lambda x: x[1], reverse=True)
         target = transfer_targets[0][0]
 
-        # 転送する資源を決定
-        if target.soldiers < 200 and province.soldiers > 150:
-            return {"type": "transfer", "target": target.id, "resource": "soldiers", "amount": 100}
-        elif target.gold < 500 and province.gold > 1000:
-            return {"type": "transfer", "target": target.id, "resource": "gold", "amount": 500}
-        elif province.rice > 1000:
-            return {"type": "transfer", "target": target.id, "resource": "rice", "amount": 500}
+        if debug:
+            print(f"[TRANSFER DEBUG] → 転送先={target.name} (兵{target.soldiers}, 金{target.gold})")
+            print(f"[TRANSFER DEBUG] → 転送元リソース: 兵{province.soldiers}, 金{province.gold}, 米{province.rice}")
 
-        return {"type": "none"}
+        # 転送可能な資源の候補リストを作成
+        transfer_options = []
+
+        # 兵士転送の条件チェック
+        if target.soldiers < 300 and province.soldiers > 100:
+            transfer_options.append({
+                "resource": "soldiers",
+                "amount": 60,
+                "weight": 3.0  # 最重要（軍事力）
+            })
+
+        # 金転送の条件チェック
+        if target.gold < 500 and province.gold > 380:
+            transfer_options.append({
+                "resource": "gold",
+                "amount": 300,
+                "weight": 1 # 重要（経済・徴兵）
+            })
+
+        # 米転送の条件チェック
+        if province.rice > 500:
+            transfer_options.append({
+                "resource": "rice",
+                "amount": 300,
+                "weight": 2 # 基本（忠誠度）
+            })
+
+        # 候補がない場合
+        if not transfer_options:
+            if debug:
+                print(f"[TRANSFER DEBUG] → 転送条件を満たさず")
+            return {"type": "none"}
+
+        # 重み付きランダムで資源を選択
+        if debug:
+            print(f"[TRANSFER DEBUG] → 転送候補: {[opt['resource'] for opt in transfer_options]}")
+
+        choices = [opt for opt in transfer_options]
+        weights = [opt["weight"] for opt in transfer_options]
+        selected_option = random.choices(choices, weights=weights, k=1)[0]
+
+        if debug:
+            print(f"[TRANSFER DEBUG] → {selected_option['resource']}転送決定 (weight={selected_option['weight']})")
+
+        return {
+            "type": "transfer",
+            "target": target.id,
+            "resource": selected_option["resource"],
+            "amount": selected_option["amount"]
+        }
 
     def _has_enemy_neighbor(self, province, daimyo_id):
         """領地が敵に隣接しているかチェック"""
+        debug = self.game_state.get_player_daimyo() is None
+        if debug:
+            daimyo = self.game_state.get_daimyo(daimyo_id)
+            daimyo_name = daimyo.clan_name if daimyo else "Unknown"
+            print(f"[NEIGHBOR DEBUG] Checking {province.name} (owner_id={province.owner_daimyo_id}, check_id={daimyo_id}, clan={daimyo_name})")
+
         for adj_id in province.adjacent_provinces:
             adj_province = self.game_state.get_province(adj_id)
-            if adj_province and adj_province.owner_daimyo_id != daimyo_id:
-                return True
+            if adj_province:
+                adj_daimyo = self.game_state.get_daimyo(adj_province.owner_daimyo_id) if adj_province.owner_daimyo_id else None
+                adj_name = adj_daimyo.clan_name if adj_daimyo else "無所属"
+                is_enemy = adj_province.owner_daimyo_id != daimyo_id
+                if debug:
+                    print(f"[NEIGHBOR DEBUG]   → {adj_province.name}: owner_id={adj_province.owner_daimyo_id} ({adj_name}), is_enemy={is_enemy}")
+                if is_enemy:
+                    if debug:
+                        print(f"[NEIGHBOR DEBUG]   ✓ Enemy found! Returning True")
+                    return True
+
+        if debug:
+            print(f"[NEIGHBOR DEBUG]   ✗ No enemies found. Returning False")
         return False
 
 
@@ -406,5 +524,6 @@ class AISystem:
             if result["success"]:
                 daimyo = self.game_state.get_daimyo(daimyo_id)
                 events.append(f"【{daimyo.clan_name}】{general.name}を{province.name}の守将に任命")
+                self.game_state.record_command(daimyo_id, province.id, "assign_general")
 
         return events

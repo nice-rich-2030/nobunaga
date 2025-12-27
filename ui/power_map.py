@@ -53,6 +53,29 @@ class PowerMap:
         self.hovered_province_id = None
         self.hovered_daimyo_id = None
 
+        # 戦闘演出中の表示制御
+        self.frozen_ownership = None  # 凍結された領地所有情報 {province_id: owner_daimyo_id}
+        self.is_frozen = False  # フリーズモード（演出中はTrue）
+
+    def freeze(self, game_state):
+        """勢力図を現在の状態で凍結（戦闘演出開始時）"""
+        self.frozen_ownership = {}
+        for province in game_state.provinces.values():
+            self.frozen_ownership[province.id] = province.owner_daimyo_id
+        self.is_frozen = True
+
+    def unfreeze(self):
+        """勢力図の凍結を解除（戦闘演出終了時）"""
+        self.is_frozen = False
+        self.frozen_ownership = None
+
+    def update_frozen_state(self, game_state):
+        """凍結状態を現在の状態に更新（各戦闘終了後）"""
+        if self.is_frozen:
+            self.frozen_ownership = {}
+            for province in game_state.provinces.values():
+                self.frozen_ownership[province.id] = province.owner_daimyo_id
+
     def set_highlight(self, province_id: int):
         """特定の領地をハイライト表示（戦闘後の領地変更時など）"""
         self.highlight_province_id = province_id
@@ -129,8 +152,12 @@ class PowerMap:
         # 座標を計算
         x, y = self._convert_position(province.position)
 
-        # 大名の色を取得
-        color = self._get_daimyo_color(province.owner_daimyo_id)
+        # 大名の色を取得（フリーズモード時は凍結された所有者を使用）
+        if self.is_frozen and self.frozen_ownership:
+            owner_daimyo_id = self.frozen_ownership.get(province.id, province.owner_daimyo_id)
+        else:
+            owner_daimyo_id = province.owner_daimyo_id
+        color = self._get_daimyo_color(owner_daimyo_id)
 
         # ハイライト効果
         is_highlighted = (province.id == self.highlight_province_id)

@@ -5,6 +5,8 @@ pygameを使用した戦略シミュレーションゲーム
 import pygame
 import sys
 import config
+from datetime import datetime
+import os
 from core.game_state import GameState
 from core.turn_manager import TurnManager
 from systems.economy import EconomySystem
@@ -68,7 +70,8 @@ class Game:
             self.game_state,
             self.internal_affairs,
             self.military_system,
-            self.diplomacy_system
+            self.diplomacy_system,
+            self.transfer_system
         )
 
         # イベントシステムの初期化
@@ -95,9 +98,14 @@ class Game:
         self.message_scroll_offset = 0  # メッセージログのスクロール位置
         self.disp_message = 7
 
+        # ログファイル設定（デバッグモード）
+        self.log_file = None
+        self._setup_log_file()
+
         # 戦闘演出管理
         self.pending_battle_animations = []  # 表示待ちの戦闘演出
         self.pending_turn_messages = []  # 演出後に表示するメッセージ
+        self.pending_winner_message = None  # 演出後に表示する勝利メッセージ
         self.current_battle_index = 0  # 現在表示中の戦闘インデックス
 
         # ボタンの作成
@@ -257,6 +265,8 @@ class Game:
             self.add_message(result["message"])
             if result["success"]:
                 province.command_used_this_turn = True
+                # コマンド実行統計を記録
+                self.game_state.record_command(province.owner_daimyo_id, province.id, command_type)
 
     def execute_attack(self, target_province_id):
         """攻撃を実行"""
@@ -299,6 +309,8 @@ class Game:
                 "origin_province_id": origin_province.id
             })
             origin_province.command_used_this_turn = True
+            # コマンド実行統計を記録
+            self.game_state.record_command(origin_province.owner_daimyo_id, origin_province.id, "attack")
             self.show_attack_selection = False
             return {"success": True, "message": f"{target_province.name}への攻撃軍を編成しました（{attack_force}人）"}
         else:
@@ -311,22 +323,33 @@ class Game:
         # ターンイベントを取得（戦闘メッセージは含まない）
         all_events = self.turn_manager.get_turn_events()
 
-        # 戦闘メッセージ以外を保留
+        # 戦闘メッセージ以外を保留（戦闘演出後に表示）
         self.pending_turn_messages = []
         for event in all_events:
             # 戦闘メッセージは個別に表示するのでスキップ
             if "【戦闘】" not in event and "⚔" not in event and "🛡" not in event and "★" not in event:
                 self.pending_turn_messages.append(event)
 
+        # 勝利メッセージも戦闘演出後に表示するため保留
+        self.pending_winner_message = None
+        if winner:
+            daimyo = self.game_state.get_daimyo(winner)
+            if daimyo:
+                self.pending_winner_message = f"*** {daimyo.clan_name} {daimyo.name}が天下統一！***"
+
         # 戦闘結果があれば演出キューに追加
         if self.turn_manager.battle_results:
             self.pending_battle_animations = self.turn_manager.battle_results.copy()
             self.current_battle_index = 0
-            # 最初の戦闘演出を開始
+            # 最初の戦闘演出を開始（結果適用は演出後）
             self.show_next_battle()
         else:
             # 戦闘がなければすぐにメッセージを表示
             self.flush_turn_messages()
+            # 勝利メッセージも表示
+            if self.pending_winner_message:
+                self.add_message(self.pending_winner_message)
+                self.pending_winner_message = None
 
         # 保留中のイベント選択があれば表示（戦闘演出後）
         if self.turn_manager.pending_event_choices and not self.battle_animation.is_visible:
@@ -336,11 +359,6 @@ class Game:
                 event_data["province"],
                 self.on_event_choice_selected
             )
-
-        if winner:
-            daimyo = self.game_state.get_daimyo(winner)
-            if daimyo:
-                self.add_message(f"*** {daimyo.clan_name} {daimyo.name}が天下統一！***")
 
     def show_next_battle(self):
         """次の戦闘演出を表示"""
@@ -359,7 +377,14 @@ class Game:
         else:
             # すべての戦闘演出が終了
             self.pending_battle_animations.clear()
+
+            # ここでメッセージと勝利メッセージを表示
             self.flush_turn_messages()
+
+            # 勝利メッセージを表示
+            if self.pending_winner_message:
+                self.add_message(self.pending_winner_message)
+                self.pending_winner_message = None
 
     def show_battle_animation(self, battle_data):
         """戦闘アニメーション画面を表示（プレビュー後）"""
@@ -371,7 +396,7 @@ class Game:
         if self.current_battle_index > 0:
             battle_data = self.pending_battle_animations[self.current_battle_index - 1]
 
-            # 1. 戦闘結果を実際に適用（領地の所有者変更など）
+            # 1. 戦闘結果を適用（演出後に初めて領地所有権を変更）
             if "combat_system" in battle_data and "army" in battle_data:
                 combat_system = battle_data["combat_system"]
                 army = battle_data["army"]
@@ -517,6 +542,13 @@ class Game:
             self.add_message(result.message)
             if result.success:
                 province.command_used_this_turn = True
+                # コマンド実行統計を記録
+                if resource_type == "soldiers":
+                    self.game_state.record_command(province.owner_daimyo_id, province.id, "transfer_soldiers")
+                elif resource_type == "gold":
+                    self.game_state.record_command(province.owner_daimyo_id, province.id, "transfer_gold")
+                elif resource_type == "rice":
+                    self.game_state.record_command(province.owner_daimyo_id, province.id, "transfer_rice")
 
     def show_general_assign_dialog(self):
         """将軍配置ダイアログを表示"""
@@ -571,6 +603,8 @@ class Game:
             result = self.internal_affairs.assign_governor(province, general)
             if result["success"]:
                 self.add_message(result["message"])
+                # コマンド実行統計を記録
+                self.game_state.record_command(province.owner_daimyo_id, province.id, "assign_general")
 
     def close_province_detail(self):
         """領地詳細を閉じる"""
@@ -607,9 +641,40 @@ class Game:
                     self.add_message(result["message"])
                 break
 
+    def _setup_log_file(self):
+        """ログファイルを作成"""
+        # logsディレクトリを作成
+        if not os.path.exists("logs"):
+            os.makedirs("logs")
+
+        # 現在時刻からファイル名を生成
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_filename = f"logs/log_{timestamp}.txt"
+
+        try:
+            self.log_file = open(log_filename, "w", encoding="utf-8")
+            self.log_file.write(f"=== Nobunaga's Ambition - Game Log ===\n")
+            self.log_file.write(f"Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            self.log_file.write(f"={'='*50}\n\n")
+            self.log_file.flush()
+            # Windowsコンソールでのエンコードエラーを回避
+        except Exception as e:
+            # エラーメッセージもファイルに書き込めるようにする
+            self.log_file = None
+
     def add_message(self, message):
         """メッセージをログに追加"""
         self.message_log.append(message)
+
+        # ログファイルに書き込み
+        if self.log_file:
+            try:
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                self.log_file.write(f"[{timestamp}] {message}\n")
+                self.log_file.flush()  # 即座にディスクに書き込む
+            except Exception:
+                pass  # ログ書き込みエラーは無視
+
         # 新しいメッセージが追加されたら、スクロールを最新に戻す
         self.message_scroll_offset = 0
         # ログが長くなりすぎたら古いものを削除（500件まで保持）
@@ -1123,6 +1188,15 @@ class Game:
 
     def quit(self):
         """ゲーム終了"""
+        # ログファイルを閉じる
+        if self.log_file:
+            try:
+                self.log_file.write(f"\n{'='*50}\n")
+                self.log_file.write(f"End Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                self.log_file.close()
+            except Exception:
+                pass  # エラーは無視
+
         try:
             print("\nGame Over")
         except:

@@ -308,6 +308,8 @@ class TurnManager:
         from systems.combat import CombatSystem
         combat_system = CombatSystem(self.game_state)
 
+        # 戦闘計算は順次行うが、結果適用は演出後に行う
+        # ただし、同一ターン内の戦闘順序を考慮する必要がある
         for battle in self.pending_battles:
             army = battle["army"]
             target_province = self.game_state.get_province(battle["target_province_id"])
@@ -316,8 +318,11 @@ class TurnManager:
             if not target_province or not origin_province:
                 continue
 
-            # 攻撃側と防御側の大名情報を取得
-            attacker_daimyo = self.game_state.get_daimyo(origin_province.owner_daimyo_id)
+            # 【注意】この時点では戦闘結果は未適用なので、
+            # 現在の領地状態で計算される（これが正しい動作）
+
+            # 攻撃側と防御側の大名情報を取得（現在の状態で）
+            attacker_daimyo = self.game_state.get_daimyo(army.daimyo_id)
             defender_daimyo = self.game_state.get_daimyo(target_province.owner_daimyo_id)
 
             attacker_name = attacker_daimyo.clan_name if attacker_daimyo else "無所属"
@@ -342,7 +347,7 @@ class TurnManager:
             initial_attacker_troops = army.total_troops
             initial_defender_troops = target_province.soldiers
 
-            # 戦闘を解決（結果のみ計算、まだ適用しない）
+            # 戦闘を解決（結果を計算のみ、適用はしない）
             result = combat_system.resolve_battle(army, target_province)
 
             # この戦闘のメッセージログを作成
@@ -353,7 +358,7 @@ class TurnManager:
             for log_entry in result.battle_log:
                 battle_messages.append(log_entry)
 
-            # 戦闘結果を演出用に保存（適用に必要な情報も含める）
+            # 戦闘結果を演出用に保存（結果の適用は演出後）
             self.battle_results.append({
                 "attacker_name": attacker_name,
                 "defender_name": defender_name,
@@ -413,6 +418,11 @@ class TurnManager:
         """フェーズ11: ターン終了処理"""
         # 統計を更新
         self.game_state.update_all_statistics()
+
+        # 20ターンごとにコマンド統計を表示
+        if self.game_state.current_turn > 0 and self.game_state.current_turn % 20 == 0:
+            stats_report = self.game_state.get_command_statistics_report()
+            self.turn_events.extend(stats_report)
 
     def queue_command(self, command: Dict[str, Any]):
         """コマンドをキューに追加"""

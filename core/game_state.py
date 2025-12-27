@@ -46,6 +46,12 @@ class GameState:
         # ========================================
         self.general_pool = None  # 後で初期化
 
+        # ========================================
+        # コマンド統計
+        # ========================================
+        # command_stats[daimyo_id][province_id][command_type] = count
+        self.command_stats: Dict[int, Dict[int, Dict[str, int]]] = {}
+
     def load_game_data(self):
         """JSONファイルからゲームデータを読み込む"""
         # Windowsのコンソール出力問題を回避
@@ -105,6 +111,7 @@ class GameState:
                 name=daimyo_data["name"],
                 clan_name=daimyo_data["clan"],
                 is_player=(i == 0)  # 最初の大名をプレイヤーとする
+                #is_player=False  # すべてAI操作でデバッグ
             )
 
             # 能力値を設定
@@ -237,6 +244,78 @@ class GameState:
         for daimyo in self.daimyo.values():
             provinces = self.get_daimyo_provinces(daimyo.id)
             daimyo.update_statistics(provinces)
+
+    def record_command(self, daimyo_id: int, province_id: int, command_type: str):
+        """コマンド実行を記録"""
+        # 大名の統計辞書を初期化
+        if daimyo_id not in self.command_stats:
+            self.command_stats[daimyo_id] = {}
+
+        # 領地の統計辞書を初期化
+        if province_id not in self.command_stats[daimyo_id]:
+            self.command_stats[daimyo_id][province_id] = {}
+
+        # コマンドカウントを増加
+        if command_type not in self.command_stats[daimyo_id][province_id]:
+            self.command_stats[daimyo_id][province_id][command_type] = 0
+
+        self.command_stats[daimyo_id][province_id][command_type] += 1
+
+    def get_command_statistics_report(self) -> List[str]:
+        """コマンド統計レポートを生成"""
+        report = []
+        report.append("")
+        report.append("=" * 80)
+        report.append(f"【コマンド実行統計】ターン {self.current_turn}")
+        report.append("=" * 80)
+
+        # 大名ごとに統計を表示
+        for daimyo_id in sorted(self.command_stats.keys()):
+            daimyo = self.get_daimyo(daimyo_id)
+            if not daimyo:
+                continue
+
+            report.append("")
+            report.append(f"■ {daimyo.clan_name} {daimyo.name}")
+            report.append("-" * 80)
+
+            # 領地ごとの統計
+            for province_id in sorted(self.command_stats[daimyo_id].keys()):
+                province = self.get_province(province_id)
+                if not province:
+                    continue
+
+                commands = self.command_stats[daimyo_id][province_id]
+
+                # コマンド総数を計算
+                total_commands = sum(commands.values())
+
+                report.append(f"  【{province.name}】 総実行数: {total_commands}回")
+
+                # コマンド種類を実行回数順にソート
+                sorted_commands = sorted(commands.items(), key=lambda x: x[1], reverse=True)
+
+                for command_type, count in sorted_commands:
+                    # コマンド名を日本語化
+                    command_names = {
+                        "cultivate": "開墾",
+                        "develop_town": "町開発",
+                        "flood_control": "治水",
+                        "give_rice": "米配布",
+                        "recruit": "徴兵",
+                        "attack": "攻撃",
+                        "transfer_soldiers": "兵士転送",
+                        "transfer_gold": "金送付",
+                        "transfer_rice": "米運搬",
+                        "assign_general": "将軍配置"
+                    }
+                    command_name = command_names.get(command_type, command_type)
+                    report.append(f"    - {command_name}: {count}回")
+
+        report.append("")
+        report.append("=" * 80)
+
+        return report
 
     def __repr__(self) -> str:
         return f"GameState(Turn: {self.current_turn}, Season: {self.get_season_name()}, Year: {self.get_year()})"

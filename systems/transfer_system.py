@@ -64,36 +64,55 @@ class TransferSystem:
         result = TransferResult()
         result.resource_type = "兵士"
 
+        # デバッグログ
+        debug = self.game_state.get_player_daimyo() is None
+        if debug:
+            print(f"[TRANSFER SYSTEM] transfer_soldiers called")
+            print(f"[TRANSFER SYSTEM]   from_id={from_province_id}, to_id={to_province_id}, amount={amount}")
+
         # バリデーション
         validation_msg = self._validate_transfer(from_province_id, to_province_id)
         if validation_msg:
             result.success = False
             result.message = validation_msg
+            if debug:
+                print(f"[TRANSFER SYSTEM]   ✗ Validation failed: {validation_msg}")
             return result
 
         from_province = self.game_state.get_province(from_province_id)
         to_province = self.game_state.get_province(to_province_id)
 
+        if debug:
+            print(f"[TRANSFER SYSTEM]   from={from_province.name}(兵{from_province.soldiers}) → to={to_province.name}(兵{to_province.soldiers})")
+
         # 転送量の検証
         if amount <= 0:
             result.success = False
             result.message = "転送量は1以上を指定してください"
+            if debug:
+                print(f"[TRANSFER SYSTEM]   ✗ amount <= 0")
             return result
 
         if amount > self.MAX_SOLDIERS_TRANSFER:
             result.success = False
             result.message = f"兵士は1ターンに最大{self.MAX_SOLDIERS_TRANSFER}人まで転送可能です"
+            if debug:
+                print(f"[TRANSFER SYSTEM]   ✗ amount > MAX_SOLDIERS_TRANSFER ({amount} > {self.MAX_SOLDIERS_TRANSFER})")
             return result
 
         if from_province.soldiers < amount:
             result.success = False
             result.message = f"兵士が不足しています（必要: {amount}人、保有: {from_province.soldiers}人）"
+            if debug:
+                print(f"[TRANSFER SYSTEM]   ✗ 兵士不足 ({from_province.soldiers} < {amount})")
             return result
 
         # 最低守備兵を残す（10人）
         if from_province.soldiers - amount < 10:
             result.success = False
             result.message = "最低10人の兵士を残す必要があります"
+            if debug:
+                print(f"[TRANSFER SYSTEM]   ✗ 最低守備兵不足 ({from_province.soldiers} - {amount} = {from_province.soldiers - amount} < 10)")
             return result
 
         # 転送実行
@@ -104,7 +123,11 @@ class TransferSystem:
         result.from_province_name = from_province.name
         result.to_province_name = to_province.name
         result.amount = amount
-        result.message = f"⚔ {from_province.name} → {to_province.name}: 兵士{amount}人を移動"
+        result.message = f"👥 {from_province.name} → {to_province.name}: 兵士{amount}人を移動"
+
+        if debug:
+            print(f"[TRANSFER SYSTEM]   ✓ 転送成功!")
+            print(f"[TRANSFER SYSTEM]   転送後: {from_province.name}(兵{from_province.soldiers}) / {to_province.name}(兵{to_province.soldiers})")
 
         return result
 
