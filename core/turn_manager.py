@@ -18,6 +18,7 @@ class TurnManager:
         self.pending_battles: List[Dict[str, Any]] = []  # 保留中の戦闘
         self.pending_event_choices: List[Dict[str, Any]] = []  # 保留中のイベント選択
         self.battle_results: List[Dict[str, Any]] = []  # ターン中の戦闘結果（演出用）
+        self.pending_daimyo_deaths: List[Dict[str, Any]] = []  # 保留中の大名死亡演出
         self.ai_system = None  # AIシステム（main.pyから設定）
         self.diplomacy_system = None  # 外交システム（main.pyから設定）
         self.event_system = None  # イベントシステム（main.pyから設定）
@@ -87,9 +88,16 @@ class TurnManager:
             old_health = daimyo.health
             daimyo.age_one_year()
 
-            # 今年死亡した場合のみメッセージを表示
+            # 今年死亡した場合、演出キューに追加
             if old_health > 0 and not daimyo.is_alive:
-                self.turn_events.append(f"{daimyo.clan_name} {daimyo.name}が死去しました（享年{old_age}）")
+                self.pending_daimyo_deaths.append({
+                    "daimyo_id": daimyo.id,
+                    "daimyo_name": daimyo.name,
+                    "clan_name": daimyo.clan_name,
+                    "age": old_age,
+                    "is_player": daimyo.is_player,
+                    "cause": "natural_death"
+                })
 
         # 武将を加齢
         for general in self.game_state.generals.values():
@@ -119,6 +127,11 @@ class TurnManager:
         for province in self.game_state.provinces.values():
             if province.owner_daimyo_id is None:
                 continue
+
+            # 農民の自然増加（1%）
+            peasant_growth = int(province.peasants * 0.01)
+            if peasant_growth > 0:
+                province.add_peasants(peasant_growth)
 
             # 米生産
             rice_produced = province.calculate_rice_production()
@@ -358,6 +371,10 @@ class TurnManager:
             for log_entry in result.battle_log:
                 battle_messages.append(log_entry)
 
+            # 大名オブジェクトを取得
+            attacker_daimyo = self.game_state.get_daimyo(army.daimyo_id)
+            defender_daimyo = self.game_state.get_daimyo(target_province.owner_daimyo_id)
+
             # 戦闘結果を演出用に保存（結果の適用は演出後）
             self.battle_results.append({
                 "attacker_name": attacker_name,
@@ -370,6 +387,8 @@ class TurnManager:
                 "defender_general": defender_general_name,
                 "attacker_general_obj": attacker_general,  # 将軍オブジェクト
                 "defender_general_obj": defender_general,  # 将軍オブジェクト
+                "attacker_daimyo_obj": attacker_daimyo,  # 大名オブジェクト（戦績表示用）
+                "defender_daimyo_obj": defender_daimyo,  # 大名オブジェクト（戦績表示用）
                 "attacker_general_id": army.general_id,  # 武将ID（肖像画表示用）
                 "defender_general_id": target_province.governor_general_id,  # 武将ID（肖像画表示用）
                 "attacker_daimyo_id": army.daimyo_id,  # 大名ID（肖像画フォールバック用）

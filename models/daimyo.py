@@ -63,6 +63,12 @@ class Daimyo:
         self.total_gold = 0
         self.total_rice = 0
 
+        # ========================================
+        # 戦績
+        # ========================================
+        self.battle_wins = 0  # 勝利数
+        self.battle_losses = 0  # 敗北数
+
     def add_province(self, province_id: int):
         """領地を追加"""
         if province_id not in self.controlled_provinces:

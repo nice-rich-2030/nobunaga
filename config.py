@@ -113,7 +113,7 @@ TRAINING_EFFECTIVENESS_BOOST = 1.2  # 20%戦闘力向上
 BASE_DAMAGE = 10  # 100兵士あたりのベースダメージ
 FLANKING_BONUS = 1.5  # 側面攻撃ボーナス
 PINCER_BONUS = 2.0  # 挟撃ボーナス
-CASTLE_DEFENSE_BONUS = 1.2  # 城防御ボーナス 1+50*(BONUS-1)/100
+CASTLE_DEFENSE_BONUS = 1.42  # 城防御ボーナス 1+50*(BONUS-1)/100
 MORALE_COMBAT_MODIFIER = 0.02  # 士気50以上で1ポイントあたり2%ボーナス
 GENERAL_SKILL_MODIFIER = 0.01  # 武将戦闘スキル1ポイントあたり1%ボーナス
 
@@ -127,7 +127,7 @@ REVOLT_THRESHOLD = 20  # この値以下で反乱リスク
 HIGH_LOYALTY_THRESHOLD = 80
 HIGH_LOYALTY_BONUS = 1.1  # 10%生産ボーナス
 
-MORALE_DECAY_RATE = -1  # ターンごとの自然減衰
+MORALE_DECAY_RATE = 5  # 米が十分な時の士気上昇
 MORALE_VICTORY_BOOST = 10
 MORALE_DEFEAT_PENALTY = -20
 MORALE_LOW_RICE_PENALTY = -10  # 米不足時
@@ -184,15 +184,15 @@ TERRAIN_EFFECTS = {
     },
     TERRAIN_MOUNTAINS: {
         "rice_multiplier": 0.7,
-        "defense_bonus": 1.5
+        "defense_bonus": 1.15
     },
     TERRAIN_FOREST: {
         "rice_multiplier": 0.9,
-        "defense_bonus": 1.2
+        "defense_bonus": 1.10
     },
     TERRAIN_COASTAL: {
         "rice_multiplier": 1.0,
-        "defense_bonus": 1.1
+        "defense_bonus": 1.05
     }
 }
 
@@ -208,6 +208,9 @@ MAJORITY_DURATION = 4  # 4ターン（1年）連続
 # ========================================
 # UI定数
 # ========================================
+# 背景画像設定
+BACKGROUND_BRIGHTNESS = 0.3  # 背景の明るさ（0.0=真っ黒、1.0=元の明るさ）手動調整可能
+
 # フォントサイズ
 FONT_SIZE_LARGE = 24
 FONT_SIZE_MEDIUM = 18

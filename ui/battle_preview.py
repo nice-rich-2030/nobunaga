@@ -3,6 +3,7 @@ BattlePreviewScreen - 戦闘開始前のプレビュー画面
 勢力図上で戦闘する領地をアニメーション表示
 """
 import pygame
+from pygame import gfxdraw
 import math
 import config
 from typing import Optional, Callable
@@ -127,8 +128,12 @@ class BattlePreviewScreen:
         blink = (self.animation_timer // 10) % 2 == 0
 
         if blink:
-            pygame.draw.circle(self.screen, (255, 100, 100), attacker_pos, 35, 4)
-            pygame.draw.circle(self.screen, (100, 100, 255), defender_pos, 35, 4)
+            # アンチエイリアシング付き円（線幅4）
+            for i in range(4):
+                r = 35 - i
+                if r > 0:
+                    gfxdraw.aacircle(self.screen, attacker_pos[0], attacker_pos[1], r, (255, 100, 100))
+                    gfxdraw.aacircle(self.screen, defender_pos[0], defender_pos[1], r, (100, 100, 255))
 
         # 矢印アニメーション
         phase_progress = self.animation_timer / self.phase_2_end
@@ -183,9 +188,12 @@ class BattlePreviewScreen:
         dy = defender_pos[1] - attacker_pos[1]
         distance = math.sqrt(dx * dx + dy * dy)
 
-        # 攻撃側と防御側のハイライト
-        pygame.draw.circle(self.screen, (255, 100, 100), attacker_pos, 35, 4)
-        pygame.draw.circle(self.screen, (100, 100, 255), defender_pos, 35, 4)
+        # 攻撃側と防御側のハイライト（アンチエイリアシング付き、線幅4）
+        for i in range(4):
+            r = 35 - i
+            if r > 0:
+                gfxdraw.aacircle(self.screen, attacker_pos[0], attacker_pos[1], r, (255, 100, 100))
+                gfxdraw.aacircle(self.screen, defender_pos[0], defender_pos[1], r, (100, 100, 255))
 
         if distance > 0:
             # 矢印本体

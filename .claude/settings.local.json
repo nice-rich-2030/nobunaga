@@ -8,7 +8,10 @@
       "Bash(timeout /t 5 /nobreak)",
       "Bash(pip install:*)",
       "Bash(python:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(del \"c:\\\\Users\\\\tozka\\\\src\\\\nobunaga\\\\ui\\\\daimyo_death_screen.py\")",
+      "Bash(rm:*)"
     ]
   }
 }

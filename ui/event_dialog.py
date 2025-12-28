@@ -10,10 +10,11 @@ from ui.widgets import Button
 class EventDialog:
     """イベント選択肢ダイアログ"""
 
-    def __init__(self, screen, font):
+    def __init__(self, screen, font, sound_manager=None):
         self.screen = screen
         self.font = font
         self.large_font = pygame.font.SysFont('meiryo', 24, bold=True)
+        self.sound_manager = sound_manager
 
         # ダイアログの状態
         self.is_visible = False
@@ -66,6 +67,10 @@ class EventDialog:
 
     def _on_choice_selected(self, choice):
         """選択肢が選択された"""
+        # 決定音再生
+        if self.sound_manager:
+            self.sound_manager.play("decide")
+
         self.selected_choice = choice
         if self.callback:
             self.callback(choice)

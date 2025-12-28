@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>信長 - 画像生成・管理ツール</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>画像生成・管理ツール</h1>
+        </header>
+
+        <main>
+            <section class="config-section card">
+                <h2>1. 対象の選択</h2>
+                <div class="form-group border-bottom">
+                    <label for="category-select">カテゴリー</label>
+                    <select id="category-select">
+                        <option value="daimyo">大名</option>
+                        <option value="general">武将</option>
+                        <option value="background">背景</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="target-select">対象</label>
+                    <select id="target-select">
+                        <!-- Options populated by JS -->
+                    </select>
+                </div>
+                <div id="target-info" class="target-info">
+                    <span id="target-id-label">ID: </span><span id="target-id-value">-</span>
+                    <span id="target-size-label">サイズ: </span><span id="target-size-value">-</span>
+                </div>
+            </section>
+
+            <section class="prompt-section card">
+                <h2>2. プロンプト入力</h2>
+                <div class="form-group">
+                    <textarea id="prompt-input" placeholder="画像を生成するためのプロンプトを入力してください..."></textarea>
+                </div>
+                <button id="generate-btn" class="primary-btn">画像生成（依頼）</button>
+                <p class="note">※生成ボタンを押すと、AIエージェントに生成を依頼するメッセージが表示されます。</p>
+            </section>
+
+            <section class="gallery-section card">
+                <h2>3. 生成済み画像 (assets-test)</h2>
+                <div id="image-gallery" class="gallery">
+                    <!-- Images populated by JS -->
+                </div>
+            </section>
+
+            <section id="selection-overlay" class="overlay hidden">
+                <div class="modal">
+                    <h3>この画像を assets に反映しますか？</h3>
+                    <div id="selected-image-preview"></div>
+                    <div class="modal-info">
+                        <div class="form-group">
+                            <label>プロンプト (コピー用)</label>
+                            <textarea id="modal-prompt-display" readonly
+                                style="width:100%; height:60px; background:#111; color:#ccc; border:1px solid #444; padding:5px;"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="modal-category-select">カテゴリー</label>
+                            <select id="modal-category-select">
+                                <option value="daimyo">大名</option>
+                                <option value="general">武将</option>
+                                <option value="background">背景</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="modal-target-select">対象</label>
+                            <select id="modal-target-select">
+                                <!-- Populated by JS -->
+                            </select>
+                        </div>
+                        <p><strong>反映先:</strong> <span id="dest-path-preview">-</span></p>
+                    </div>
+                    <div class="modal-actions">
+                        <button id="confirm-reflect-btn" class="primary-btn">反映する</button>
+                        <button id="cancel-reflect-btn" class="secondary-btn">キャンセル</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Nobunaga Project Image Tool</p>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>

@@ -11,10 +11,11 @@ from models.province import Province
 class TransferDialog:
     """リソース転送ダイアログクラス"""
 
-    def __init__(self, screen, font):
+    def __init__(self, screen, font, sound_manager=None):
         self.screen = screen
         self.font = font
         self.small_font = pygame.font.SysFont('meiryo', 14)
+        self.sound_manager = sound_manager
 
         self.is_visible = False
         self.from_province = None
@@ -250,6 +251,10 @@ class TransferDialog:
         if len(self.target_provinces) == 0:
             return
 
+        # 決定音再生
+        if self.sound_manager:
+            self.sound_manager.play("decide")
+
         target_province = self.target_provinces[self.selected_target_index]
 
         if self.on_confirm_callback:
@@ -259,6 +264,10 @@ class TransferDialog:
 
     def _cancel(self):
         """キャンセル"""
+        # キャンセル音再生
+        if self.sound_manager:
+            self.sound_manager.play("cancel")
+
         if self.on_cancel_callback:
             self.on_cancel_callback()
 

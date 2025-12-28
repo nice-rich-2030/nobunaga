@@ -3,6 +3,7 @@ PowerMap - 勢力マップ表示ウィジェット
 各大名の領土を色分けして視覚的に表示
 """
 import pygame
+from pygame import gfxdraw
 import config
 from typing import Dict, List, Optional
 
@@ -102,11 +103,14 @@ class PowerMap:
     def draw(self, game_state):
         """勢力マップを描画"""
         # 背景画像を読み込んで描画、なければ単色で塗りつぶし
-        power_map_bg = self.image_manager.load_background("power_map_background.png")
+        # スケール＆トリミング機能を使用
+        power_map_bg = self.image_manager.load_background(
+            "power_map_background.png",
+            target_size=(self.map_width, self.map_height)
+        )
         if power_map_bg:
-            # 背景画像をマップ領域にスケール
-            scaled_bg = pygame.transform.scale(power_map_bg, (self.map_width, self.map_height))
-            self.screen.blit(scaled_bg, (self.map_x, self.map_y))
+            # スケール＆トリミング済みなのでそのままblit
+            self.screen.blit(power_map_bg, (self.map_x, self.map_y))
         else:
             # フォールバック: 単色背景
             pygame.draw.rect(self.screen, self.bg_color,
@@ -153,9 +157,8 @@ class PowerMap:
                 x1, y1 = self._convert_position(province.position)
                 x2, y2 = self._convert_position(adj_province.position)
 
-                # 接続線を描画（細い灰色の線）
-                pygame.draw.line(self.screen, (60, 60, 60),
-                               (x1, y1), (x2, y2), 1)
+                # 接続線を描画（アンチエイリアシング付き）
+                gfxdraw.line(self.screen, x1, y1, x2, y2, (60, 60, 60))
 
     def _draw_province(self, province, game_state):
         """個別の領地を描画"""
@@ -175,10 +178,13 @@ class PowerMap:
             # 点滅効果
             pulse = int((self.highlight_timer / 10) % 2)
             if pulse == 0:
-                # 外側に光る円を描画
+                # 外側に光る円を描画（アンチエイリアシング付き、線幅2）
                 glow_radius = 30 + int((self.highlight_timer % 10) * 2)
                 glow_color = (255, 255, 100)
-                pygame.draw.circle(self.screen, glow_color, (x, y), glow_radius, 2)
+                for i in range(2):
+                    r = glow_radius - i
+                    if r > 0:
+                        gfxdraw.aacircle(self.screen, x, y, r, glow_color)
 
         # 領地の円を描画（大きさは農民数に応じて変化）
         base_radius = 27  # 少し大きく
@@ -186,13 +192,17 @@ class PowerMap:
         size_ratio = province.peasants / max_peasants
         radius = int(base_radius * (0.7 + 0.3 * size_ratio))
 
-        # 内側の円（領地の色）
-        pygame.draw.circle(self.screen, color, (x, y), radius)
+        # 内側の円（領地の色）- アンチエイリアシング付き
+        gfxdraw.filled_circle(self.screen, x, y, radius, color)
+        gfxdraw.aacircle(self.screen, x, y, radius, color)
 
-        # 外側の枠
+        # 外側の枠 - アンチエイリアシング付き
         border_color = (255, 255, 255) if is_highlighted else (40, 40, 40)
         border_width = 3 if is_highlighted else 2
-        pygame.draw.circle(self.screen, border_color, (x, y), radius, border_width)
+        for i in range(border_width):
+            r = radius - i
+            if r > 0:
+                gfxdraw.aacircle(self.screen, x, y, r, border_color)
 
         # 城マーク（has_castleがTrueの場合）
         marker_offset = 0

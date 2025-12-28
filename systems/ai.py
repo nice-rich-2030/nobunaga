@@ -85,11 +85,13 @@ class AISystem:
                 target_province = self.game_state.get_province(target_province_id)
                 if target_province:
                     attack_force = int(province.soldiers * 0.8)
+                    # 守将がいれば将軍として配属
+                    general_id = province.governor_general_id
                     result = self.military_system.create_attack_army(
                         province,
                         target_province,
                         attack_force,
-                        None
+                        general_id
                     )
                     if result["success"] and self.turn_manager:
                         army = result["army"]
@@ -242,8 +244,8 @@ class AISystem:
             return {"type": "flood_control"}
 
         # 5. 兵士が少なく、農民がいる場合は徴兵
-        if province.soldiers < 300 and province.peasants >= 100 and province.gold >= config.RECRUIT_COST_PER_SOLDIER * 100:
-            return {"type": "recruit"}
+        #if province.soldiers < 300 and province.peasants >= 100 and province.gold >= config.RECRUIT_COST_PER_SOLDIER * 100:
+        #    return {"type": "recruit"}
 
         return {"type": "none"}
 
@@ -256,9 +258,12 @@ class AISystem:
             if target:
                 return {"type": "attack", "target": target}
 
-        # 2. 兵士が少なく、農民がいる場合は徴兵
-        if province.soldiers < 300 and province.peasants >= 100 and province.gold >= config.RECRUIT_COST_PER_SOLDIER * 100:
-            return {"type": "recruit"}
+        # 2. 隣接敵領地への攻撃に必要な兵力が不足している場合は徴兵
+        max_enemy_soldiers = self._get_max_adjacent_enemy_soldiers(province, daimyo.id)
+        if max_enemy_soldiers > 0:
+            required_soldiers = int(max_enemy_soldiers * 1.35)
+            if province.soldiers < required_soldiers and province.peasants >= 100 and province.gold >= config.RECRUIT_COST_PER_SOLDIER * 100:
+                return {"type": "recruit"}
 
         return {"type": "none"}
 
@@ -387,6 +392,29 @@ class AISystem:
         return False
 
 
+    def _get_max_adjacent_enemy_soldiers(self, province, daimyo_id):
+        """隣接する敵領地の最大兵力を取得"""
+        max_soldiers = 0
+
+        for adj_id in province.adjacent_provinces:
+            adj_province = self.game_state.get_province(adj_id)
+            if not adj_province:
+                continue
+
+            # 自分の領地はスキップ
+            if adj_province.owner_daimyo_id == daimyo_id:
+                continue
+
+            # 外交関係をチェック
+            if not self.diplomacy_system.can_attack(daimyo_id, adj_province.owner_daimyo_id):
+                continue
+
+            # 最大兵力を更新
+            if adj_province.soldiers > max_soldiers:
+                max_soldiers = adj_province.soldiers
+
+        return max_soldiers
+
     def _find_attack_target(self, province, daimyo_id):
         """攻撃対象を見つける"""
         candidates = []
@@ -405,19 +433,21 @@ class AISystem:
                 continue
 
             # 戦力比較（守備側が有利なため、攻撃側は十分な兵力が必要）
-            attack_force = int(province.soldiers * 0.8)  # 出陣できる兵力（80%）
+            #attack_force = int(province.soldiers * 0.8)  # 出陣できる兵力（80%）
             defender_force = adj_province.soldiers
 
             # 守備側の防御ボーナスを考慮した必要兵力比率
-            defense_bonus = adj_province.get_defense_bonus()
+            #defense_bonus = adj_province.get_defense_bonus()
 
-            # 基本的に攻撃側は守備側の1.5倍必要
+            # 基本的に攻撃側は守備側の1.35倍必要
             # さらに防御ボーナスに応じて必要兵力が増加
             # 例: 防御1.5倍の山岳 → 1.5 * 1.5 = 2.25倍の兵力が必要
-            required_ratio = 1.5 * defense_bonus
+            #required_ratio = 1.5 * defense_bonus
+            #
+            required_ratio = 1.35
 
             # 攻撃側の兵力が必要比率以上なら攻撃を検討
-            if attack_force >= defender_force * required_ratio:
+            if province.soldiers >= defender_force * required_ratio:
                 candidates.append((adj_id, adj_province.soldiers))
 
         # 最も守備兵力が少ない領地を選択

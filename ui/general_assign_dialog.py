@@ -12,10 +12,11 @@ from models.general import General
 class GeneralAssignDialog:
     """将軍配置ダイアログクラス"""
 
-    def __init__(self, screen, font):
+    def __init__(self, screen, font, sound_manager=None):
         self.screen = screen
         self.font = font
         self.small_font = pygame.font.SysFont('meiryo', 14)
+        self.sound_manager = sound_manager
 
         self.is_visible = False
         self.province = None
@@ -209,6 +210,10 @@ class GeneralAssignDialog:
 
     def _confirm(self):
         """配置を確定"""
+        # 決定音再生
+        if self.sound_manager:
+            self.sound_manager.play("decide")
+
         if self.on_confirm_callback:
             # selected_general_index == -1は配置解除、0以降は将軍選択
             if self.selected_general_index == -1:
@@ -221,6 +226,10 @@ class GeneralAssignDialog:
 
     def _cancel(self):
         """キャンセル"""
+        # キャンセル音再生
+        if self.sound_manager:
+            self.sound_manager.play("cancel")
+
         if self.on_cancel_callback:
             self.on_cancel_callback()
 

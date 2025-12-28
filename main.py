@@ -19,6 +19,7 @@ from ui.battle_preview import BattlePreviewScreen
 from ui.power_map import PowerMap
 from ui.transfer_dialog import TransferDialog
 from ui.general_assign_dialog import GeneralAssignDialog
+from ui.daimyo_death_screen import DaimyoDeathScreen
 
 
 class Game:
@@ -54,6 +55,11 @@ class Game:
         assets_path = os.path.join(config.BASE_DIR, "assets")
         self.image_manager = ImageManager(assets_path)
         self.image_manager.preload_all_portraits()
+
+        # 音声管理の初期化
+        from utils.sound_manager import SoundManager
+        self.sound_manager = SoundManager(assets_path)
+        self.sound_manager.preload_all_sounds()
 
         # ゲームシステムの初期化
         self.turn_manager = TurnManager(self.game_state)
@@ -98,6 +104,7 @@ class Game:
 
         # UI状態
         self.selected_province_id = None
+        self.selected_attack_target_id = None  # 攻撃対象として選択中の領地ID
         self.show_province_detail = False
         self.show_attack_selection = False
         self.message_log = []
@@ -114,6 +121,10 @@ class Game:
         self.pending_winner_message = None  # 演出後に表示する勝利メッセージ
         self.current_battle_index = 0  # 現在表示中の戦闘インデックス
 
+        # 大名死亡演出管理
+        self.pending_daimyo_death_animations = []  # 表示待ちの大名死亡演出
+        self.current_death_index = 0  # 現在表示中の死亡演出インデックス
+
         # ボタンの作成
         self.create_buttons()
 
@@ -125,14 +136,16 @@ class Game:
             1100,button_y, 150, 40,
             "ターン終了",
             self.font_medium,
-            self.end_turn
+            self.end_turn,
+            self.sound_manager,
+            "decide"
         )
 
         # イベントダイアログ
-        self.event_dialog = EventDialog(self.screen, self.font_medium)
+        self.event_dialog = EventDialog(self.screen, self.font_medium, self.sound_manager)
 
         # イベント履歴画面
-        self.event_history_screen = EventHistoryScreen(self.screen, self.font_medium)
+        self.event_history_screen = EventHistoryScreen(self.screen, self.font_medium, self.sound_manager)
 
         # 勢力マップ
         self.power_map = PowerMap(self.screen, self.font_medium, self.image_manager)
@@ -141,19 +154,24 @@ class Game:
         self.battle_preview = BattlePreviewScreen(self.screen, self.font_medium, self.power_map)
 
         # 戦闘演出画面
-        self.battle_animation = BattleAnimationScreen(self.screen, self.font_medium, self.image_manager)
+        self.battle_animation = BattleAnimationScreen(self.screen, self.font_medium, self.image_manager, self.sound_manager)
+
+        # 大名死亡演出画面
+        self.daimyo_death_screen = DaimyoDeathScreen(self.screen, self.font_medium, self.image_manager, self.sound_manager)
 
         # 転送ダイアログ
-        self.transfer_dialog = TransferDialog(self.screen, self.font_medium)
+        self.transfer_dialog = TransferDialog(self.screen, self.font_medium, self.sound_manager)
 
         # 将軍配置ダイアログ
-        self.general_assign_dialog = GeneralAssignDialog(self.screen, self.font_medium)
+        self.general_assign_dialog = GeneralAssignDialog(self.screen, self.font_medium, self.sound_manager)
 
         self.btn_close_detail = Button(
             config.SCREEN_WIDTH - 170, button_y, 150, 40,
             "戻る",
             self.font_medium,
-            self.close_province_detail
+            self.close_province_detail,
+            self.sound_manager,
+            "cancel"
         )
 
         # 内政コマンドボタン
@@ -161,28 +179,36 @@ class Game:
             540, 270, 180, 35,
             "開墾 (金200)",
             self.font_small,
-            lambda: self.execute_command("cultivate")
+            lambda: self.execute_command("cultivate"),
+            self.sound_manager,
+            "decide"
         )
 
         self.btn_develop_town = Button(
             540, 315, 180, 35,
             "町開発 (金300)",
             self.font_small,
-            lambda: self.execute_command("develop_town")
+            lambda: self.execute_command("develop_town"),
+            self.sound_manager,
+            "decide"
         )
 
         self.btn_flood_control = Button(
             540, 360, 180, 35,
             "治水 (金150)",
             self.font_small,
-            lambda: self.execute_command("flood_control")
+            lambda: self.execute_command("flood_control"),
+            self.sound_manager,
+            "decide"
         )
 
         self.btn_give_rice = Button(
             540, 405, 180, 35,
             "米配布 (米100)",
             self.font_small,
-            lambda: self.execute_command("give_rice")
+            lambda: self.execute_command("give_rice"),
+            self.sound_manager,
+            "decide"
         )
 
         # 軍事コマンドボタン
@@ -190,14 +216,18 @@ class Game:
             540, 540, 180, 35,
             "100人徴兵 (金200)",
             self.font_small,
-            lambda: self.execute_command("recruit")
+            lambda: self.execute_command("recruit"),
+            self.sound_manager,
+            "decide"
         )
 
         self.btn_attack = Button(
             540, 585, 180, 35,
             "攻撃",
             self.font_small,
-            lambda: self.execute_command("attack")
+            lambda: self.execute_command("attack"),
+            self.sound_manager,
+            "decide"
         )
 
         # 転送コマンドボタン
@@ -205,21 +235,27 @@ class Game:
             790, 270, 180, 35,
             "兵士転送",
             self.font_small,
-            lambda: self.execute_command("transfer_soldiers")
+            lambda: self.execute_command("transfer_soldiers"),
+            self.sound_manager,
+            "decide"
         )
 
         self.btn_transfer_gold = Button(
             790, 315, 180, 35,
             "金送付",
             self.font_small,
-            lambda: self.execute_command("transfer_gold")
+            lambda: self.execute_command("transfer_gold"),
+            self.sound_manager,
+            "decide"
         )
 
         self.btn_transfer_rice = Button(
             790, 360, 180, 35,
             "米運搬",
             self.font_small,
-            lambda: self.execute_command("transfer_rice")
+            lambda: self.execute_command("transfer_rice"),
+            self.sound_manager,
+            "decide"
         )
 
         # 将軍配置ボタン
@@ -227,7 +263,30 @@ class Game:
             790, 405, 180, 35,
             "将軍配置",
             self.font_small,
-            lambda: self.execute_command("assign_general")
+            lambda: self.execute_command("assign_general"),
+            self.sound_manager,
+            "decide"
+        )
+
+        # 攻撃対象選択画面用のボタン
+        self.btn_confirm_attack = Button(
+            config.SCREEN_WIDTH // 2 - 160, config.SCREEN_HEIGHT - 120,
+            150, 40,
+            "決定",
+            self.font_medium,
+            self._confirm_attack,
+            self.sound_manager,
+            "decide"
+        )
+
+        self.btn_cancel_attack = Button(
+            config.SCREEN_WIDTH // 2 + 10, config.SCREEN_HEIGHT - 120,
+            150, 40,
+            "戻る",
+            self.font_medium,
+            self._cancel_attack,
+            self.sound_manager,
+            "cancel"
         )
 
     def execute_command(self, command_type):
@@ -252,6 +311,8 @@ class Game:
         elif command_type == "recruit":
             result = self.military_system.recruit_soldiers(province, 100)
         elif command_type == "attack":
+            # 攻撃対象選択状態を初期化
+            self.selected_attack_target_id = None
             self.show_attack_selection = True
             return  # 攻撃対象選択画面に遷移
         elif command_type == "transfer_soldiers":
@@ -299,11 +360,13 @@ class Game:
 
         # 攻撃軍を編成（全兵力の80%を派遣）
         attack_force = int(origin_province.soldiers * 0.8)
+        # 守将がいれば将軍として配属
+        general_id = origin_province.governor_general_id
         result = self.military_system.create_attack_army(
             origin_province,
             target_province,
             attack_force,
-            None  # 武将なし（将来実装）
+            general_id
         )
 
         if result["success"]:
@@ -384,13 +447,20 @@ class Game:
             # すべての戦闘演出が終了
             self.pending_battle_animations.clear()
 
-            # ここでメッセージと勝利メッセージを表示
-            self.flush_turn_messages()
+            # 大名死亡演出があれば開始
+            if self.turn_manager.pending_daimyo_deaths:
+                self.pending_daimyo_death_animations = self.turn_manager.pending_daimyo_deaths.copy()
+                self.turn_manager.pending_daimyo_deaths.clear()
+                self.current_death_index = 0
+                self.show_next_daimyo_death()
+            else:
+                # 死亡演出もなければメッセージ表示
+                self.flush_turn_messages()
 
-            # 勝利メッセージを表示
-            if self.pending_winner_message:
-                self.add_message(self.pending_winner_message)
-                self.pending_winner_message = None
+                # 勝利メッセージを表示
+                if self.pending_winner_message:
+                    self.add_message(self.pending_winner_message)
+                    self.pending_winner_message = None
 
     def show_battle_animation(self, battle_data):
         """戦闘アニメーション画面を表示（プレビュー後）"""
@@ -410,8 +480,21 @@ class Game:
                 result = battle_data["result"]
 
                 if target_province:
-                    # 結果を適用
-                    combat_system.apply_battle_result(result, army, target_province)
+                    # 結果を適用（大名が討死した場合、defeated_daimyo_idが返る）
+                    defeated_daimyo_id = combat_system.apply_battle_result(result, army, target_province)
+
+                    # 大名が討死した場合、演出キューに追加
+                    if defeated_daimyo_id:
+                        defeated_daimyo = self.game_state.get_daimyo(defeated_daimyo_id)
+                        if defeated_daimyo:
+                            self.turn_manager.pending_daimyo_deaths.append({
+                                "daimyo_id": defeated_daimyo.id,
+                                "daimyo_name": defeated_daimyo.name,
+                                "clan_name": defeated_daimyo.clan_name,
+                                "age": defeated_daimyo.age,
+                                "is_player": defeated_daimyo.is_player,
+                                "cause": "battle_defeat"
+                            })
 
                     # 敗北した軍は撤退（削除）
                     if not result.attacker_won and army.id in self.game_state.armies:
@@ -422,6 +505,9 @@ class Game:
 
             # 2. 勢力図の反映（領地変更があればハイライト）
             if battle_data.get("result") and battle_data["result"].province_captured:
+                # 戦闘音再生
+                self.sound_manager.play("battle")
+
                 # 占領された領地をハイライト
                 defender_province_name = battle_data["defender_province"]
                 for province in self.game_state.provinces.values():
@@ -434,7 +520,10 @@ class Game:
                 for message in battle_data["messages"]:
                     self.add_message(message)
 
-        # 4. 次の戦闘があれば表示、なければ残りのメッセージを表示
+        # 4. 領地喪失による死亡チェック（全戦闘処理後）
+        self.check_territory_loss_deaths()
+
+        # 5. 次の戦闘があれば表示、なければ残りのメッセージを表示
         self.show_next_battle()
 
     def flush_turn_messages(self):
@@ -442,6 +531,125 @@ class Game:
         for event in self.pending_turn_messages:
             self.add_message(event)
         self.pending_turn_messages.clear()
+
+    def show_next_daimyo_death(self):
+        """次の大名死亡演出を表示"""
+        if self.current_death_index < len(self.pending_daimyo_death_animations):
+            death_data = self.pending_daimyo_death_animations[self.current_death_index]
+            self.current_death_index += 1
+
+            # 演出開始
+            self.daimyo_death_screen.show(
+                death_data,
+                on_finish=self.on_daimyo_death_finished,
+                on_play=self.restart_game,
+                on_end=self.quit
+            )
+        else:
+            # 全死亡演出終了
+            self.pending_daimyo_death_animations.clear()
+            self.flush_turn_messages()
+            if self.pending_winner_message:
+                self.add_message(self.pending_winner_message)
+                self.pending_winner_message = None
+
+    def on_daimyo_death_finished(self):
+        """死亡演出終了時のコールバック"""
+        # 最後に表示した死亡データを取得
+        death_data = self.pending_daimyo_death_animations[self.current_death_index - 1]
+
+        # 領地を回収（中立化）
+        self.handle_daimyo_death(death_data["daimyo_id"])
+
+        # 次の死亡演出へ
+        self.show_next_daimyo_death()
+
+    def check_territory_loss_deaths(self):
+        """領地喪失による死亡チェック"""
+        for daimyo in self.game_state.daimyo.values():
+            # 既に死亡している、または領地を持っている場合はスキップ
+            if not daimyo.is_alive or len(daimyo.controlled_provinces) > 0:
+                continue
+
+            # 全領地を失った大名は死亡
+            daimyo.is_alive = False
+
+            # 死亡演出キューに追加
+            self.turn_manager.pending_daimyo_deaths.append({
+                "daimyo_id": daimyo.id,
+                "daimyo_name": daimyo.name,
+                "clan_name": daimyo.clan_name,
+                "age": daimyo.age,
+                "is_player": daimyo.is_player,
+                "cause": "territory_loss"  # 新しい死因
+            })
+
+            print(f"[Game] 大名 {daimyo.clan_name} {daimyo.name} が全領地喪失により死亡")
+
+    def handle_daimyo_death(self, daimyo_id: int):
+        """大名死亡時の領地処理"""
+        daimyo = self.game_state.get_daimyo(daimyo_id)
+        if not daimyo:
+            return
+
+        # 全領地を中立化
+        for province_id in list(daimyo.controlled_provinces):
+            province = self.game_state.get_province(province_id)
+            if province:
+                province.owner_daimyo_id = None
+                province.governor_general_id = None
+                daimyo.remove_province(province_id)
+
+        # 配下の将軍を浪人化
+        for general in list(self.game_state.generals.values()):
+            if general.serving_daimyo_id == daimyo_id:
+                general.serving_daimyo_id = None
+                general.unassign()
+
+    def restart_game(self):
+        """ゲームを完全リセットして再開"""
+        # 1. GameStateを新規作成
+        self.game_state = GameState()
+        self.game_state.load_game_data()
+
+        # 2. 将軍プール再初期化
+        from systems.general_pool import GeneralPool
+        self.game_state.general_pool = GeneralPool(self.game_state)
+        self.game_state.general_pool.initialize()
+
+        # 3. 各システムのGameState参照を更新
+        self.turn_manager.game_state = self.game_state
+        self.economy_system.game_state = self.game_state
+        self.internal_affairs.game_state = self.game_state
+        self.military_system.game_state = self.game_state
+        self.combat_system.game_state = self.game_state
+        self.diplomacy_system.game_state = self.game_state
+        self.transfer_system.game_state = self.game_state
+        self.ai_system.game_state = self.game_state
+        self.event_system.game_state = self.game_state
+
+        # 4. イベントシステム再初期化
+        self.event_system.load_events_from_file(config.EVENTS_DATA)
+        self.event_system.general_pool = self.game_state.general_pool
+
+        # 5. UIとフラグのリセット
+        self.selected_province_id = None
+        self.selected_attack_target_id = None
+        self.show_province_detail = False
+        self.show_attack_selection = False
+        self.message_log.clear()
+        self.message_scroll_offset = 0
+
+        # 6. 演出キューのクリア
+        self.pending_battle_animations.clear()
+        self.pending_daimyo_death_animations.clear()
+        self.pending_turn_messages.clear()
+        self.pending_winner_message = None
+        self.current_battle_index = 0
+        self.current_death_index = 0
+
+        # 7. 再開メッセージ
+        self.add_message("=== ゲーム再開 ===")
 
     def on_event_choice_selected(self, choice):
         """イベント選択肢が選択された"""
@@ -612,11 +820,31 @@ class Game:
                 # コマンド実行統計を記録
                 self.game_state.record_command(province.owner_daimyo_id, province.id, "assign_general")
 
+    def _confirm_attack(self):
+        """攻撃決定ボタンのコールバック"""
+        if self.selected_attack_target_id is None:
+            return
+
+        result = self.execute_attack(self.selected_attack_target_id)
+        if result:
+            self.add_message(result["message"])
+
+        # 選択状態をリセット
+        self.selected_attack_target_id = None
+
+    def _cancel_attack(self):
+        """攻撃キャンセルボタンのコールバック"""
+        # 選択状態をリセット
+        self.selected_attack_target_id = None
+        # 攻撃対象選択画面を閉じる
+        self.show_attack_selection = False
+
     def close_province_detail(self):
         """領地詳細を閉じる"""
         self.show_province_detail = False
         self.show_attack_selection = False
         self.selected_province_id = None
+        self.selected_attack_target_id = None  # 追加
 
     def handle_attack_target_click(self, pos):
         """攻撃対象クリック処理"""
@@ -642,9 +870,13 @@ class Game:
             rect = pygame.Rect(100, y_pos, 600, line_height)
 
             if rect.collidepoint(pos):
-                result = self.execute_attack(target.id)
-                if result:
-                    self.add_message(result["message"])
+                # トグル動作: 同じ領地を再クリックで選択解除
+                if self.selected_attack_target_id == target.id:
+                    self.selected_attack_target_id = None
+                else:
+                    self.selected_attack_target_id = target.id
+                    # 決定音再生
+                    self.sound_manager.play("decide")
                 break
 
     def _setup_log_file(self):
@@ -693,6 +925,11 @@ class Game:
             if event.type == pygame.QUIT:
                 self.running = False
 
+            # 大名死亡演出が表示中は最優先で処理
+            if self.daimyo_death_screen.is_visible:
+                self.daimyo_death_screen.handle_event(event)
+                continue
+
             # 戦闘プレビューが表示されている場合は優先処理
             if self.battle_preview.is_visible:
                 self.battle_preview.handle_event(event)
@@ -725,6 +962,9 @@ class Game:
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
+                    # キャンセル音再生
+                    self.sound_manager.play("cancel")
+
                     if self.show_province_detail:
                         self.close_province_detail()
                     else:
@@ -753,7 +993,8 @@ class Game:
             # ボタンイベント処理
             if self.show_attack_selection:
                 # 攻撃対象選択画面
-                self.btn_close_detail.handle_event(event)
+                self.btn_confirm_attack.handle_event(event)
+                self.btn_cancel_attack.handle_event(event)
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     self.handle_attack_target_click(event.pos)
             elif self.show_province_detail:
@@ -783,6 +1024,9 @@ class Game:
             province = self.game_state.get_province(province_id)
             # プレイヤーの領地のみ選択可能
             if province and province.owner_daimyo_id == 1:
+                # 決定音再生
+                self.sound_manager.play("decide")
+
                 self.selected_province_id = province.id
                 self.show_province_detail = True
                 return
@@ -803,6 +1047,10 @@ class Game:
 
     def update(self):
         """ゲームロジックの更新"""
+        # 大名死亡演出の更新
+        if self.daimyo_death_screen.is_visible:
+            self.daimyo_death_screen.update()
+
         # 戦闘プレビューの更新
         if self.battle_preview.is_visible:
             self.battle_preview.update(self.game_state)
@@ -818,7 +1066,11 @@ class Game:
     def render(self):
         """画面の描画"""
         # 背景画像を描画、なければ単色で塗りつぶし
-        main_bg = self.image_manager.load_background("main_background.png")
+        # スケール＆トリミング機能を使用
+        main_bg = self.image_manager.load_background(
+            "main_background.png",
+            target_size=(config.SCREEN_WIDTH, config.SCREEN_HEIGHT)
+        )
         if main_bg:
             self.screen.blit(main_bg, (0, 0))
         else:
@@ -855,49 +1107,76 @@ class Game:
         if self.general_assign_dialog.is_visible:
             self.general_assign_dialog.draw()
 
+        # 大名死亡演出画面を最前面に描画
+        if self.daimyo_death_screen.is_visible:
+            self.daimyo_death_screen.draw()
+
         pygame.display.flip()
 
     def render_main_map(self):
         """メインマップ画面を描画"""
-        # タイトル
+        # 背景画像を描画（明るさ調整付き）
+        main_bg = self.image_manager.load_background(
+            "main_background.png",
+            target_size=(config.SCREEN_WIDTH, config.SCREEN_HEIGHT),
+            brightness=config.BACKGROUND_BRIGHTNESS
+        )
+        if main_bg:
+            self.screen.blit(main_bg, (0, 0))
+        else:
+            # フォールバック：単色背景
+            self.screen.fill(config.UI_BG_COLOR)
+
+        # タイトルとターン情報を横並びに表示
         title = self.font_large.render("信長の野望", True, config.UI_HIGHLIGHT_COLOR)
         self.screen.blit(title, (20, 20))
 
-        # ターン情報
+        # ターン情報（タイトルの右側）
         season_name = self.game_state.get_season_name()
         year = self.game_state.get_year()
         turn_info = f"ターン {self.game_state.current_turn} - {season_name} {year}年"
         turn_text = self.font_medium.render(turn_info, True, config.UI_TEXT_COLOR)
-        self.screen.blit(turn_text, (20, 70))
+        title_width = title.get_width()
+        self.screen.blit(turn_text, (20 + title_width + 30, 28))
 
-        # プレイヤー情報
+        # プレイヤー情報（上にずらす）
         player = self.game_state.get_player_daimyo()
         if player:
+            # プレイヤー大名の肖像画を表示（70に変更 - ターン情報の行の削除分だけ上に）
+            portrait_y = 70
+            portrait_size = (120, 120)
+            player_portrait = self.image_manager.get_portrait_for_battle(
+                None, player.id, portrait_size
+            )
+            self.screen.blit(player_portrait, (20, portrait_y))
+            pygame.draw.rect(self.screen, config.UI_HIGHLIGHT_COLOR, (20, portrait_y, 120, 120), 2)
+
+            # 大名情報（肖像画の右）
             player_info = f"大名: {player.clan_name} {player.name}"
             player_text = self.font_medium.render(player_info, True, config.UI_TEXT_COLOR)
-            self.screen.blit(player_text, (20, 110))
+            self.screen.blit(player_text, (150, portrait_y + 5))
 
             province_count = len(player.controlled_provinces)
             total_provinces = len(self.game_state.provinces)
             count_text = f"支配領地: {province_count}/{total_provinces}"
             count_render = self.font_small.render(count_text, True, config.UI_TEXT_COLOR)
-            self.screen.blit(count_render, (20, 145))
+            self.screen.blit(count_render, (150, portrait_y + 35))
 
             # 総収支表示
             income = self.economy_system.calculate_total_income(player.id)
             upkeep = self.economy_system.calculate_total_upkeep(player.id)
             balance_text = f"総収入: 金{income['gold']} 米{income['rice']}  総維持: 米{upkeep['rice']}"
             balance_render = self.font_small.render(balance_text, True, config.UI_TEXT_COLOR)
-            self.screen.blit(balance_render, (20, 170))
+            self.screen.blit(balance_render, (150, portrait_y + 60))
 
-        # 領地一覧
+        # 領地一覧（上にずらす - 【織田】の削除とターン情報の移動分で195に）
         title_text = self.font_medium.render("=== 支配領地一覧 ===", True, config.UI_HIGHLIGHT_COLOR)
-        self.screen.blit(title_text, (20, 205))
+        self.screen.blit(title_text, (20, 195))
 
         help_text = self.font_small.render("（クリックで詳細表示）", True, config.GRAY)
-        self.screen.blit(help_text, (250, 210))
+        self.screen.blit(help_text, (250, 200))
 
-        y_pos = 235
+        y_pos = 225
         player_provinces = self.game_state.get_player_provinces()
         for province in player_provinces:
             # 領地情報
@@ -911,6 +1190,9 @@ class Game:
 
         # 勢力マップを描画
         self.power_map.draw(self.game_state)
+
+        # 大名健康状態表示（右側）
+        self.draw_daimyo_health_status()
 
         # ボタン（メッセージログの上に配置）
         self.btn_end_turn.draw(self.screen)
@@ -952,6 +1234,52 @@ class Game:
             msg_text = self.font_small.render(display_message, True, config.LIGHT_GRAY)
             self.screen.blit(msg_text, (30, log_y))
             log_y += 16
+
+    def draw_daimyo_health_status(self):
+        """全大名の健康状態を表示"""
+        # 画面右側に表示
+        panel_x = 510
+        panel_y = 40
+        panel_width = 340
+
+        # タイトル
+        title = self.font_medium.render("=== 大名状態 ===", True, config.UI_HIGHLIGHT_COLOR)
+        self.screen.blit(title, (panel_x, panel_y))
+
+        y_pos = panel_y + 27
+
+        # 全大名の情報を表示
+        for daimyo in sorted(self.game_state.daimyo.values(), key=lambda d: d.id):
+            # 生存状態のアイコン
+            if daimyo.is_alive:
+                alive_icon = "●"
+                if daimyo.health > 50:
+                    alive_color = config.STATUS_GOOD  # 緑
+                elif daimyo.health > 30:
+                    alive_color = config.STATUS_NEUTRAL  # 黄
+                else:
+                    alive_color = config.STATUS_BAD  # 赤
+            else:
+                alive_icon = "×"
+                alive_color = config.GRAY
+
+            # 大名名
+            name_text = f"{alive_icon} {daimyo.clan_name} {daimyo.name}"
+            name_surface = self.font_small.render(name_text, True, alive_color)
+            self.screen.blit(name_surface, (panel_x, y_pos))
+
+            # 健康度と年齢
+            if daimyo.is_alive:
+                status_text = f"健康{daimyo.health} 年齢{daimyo.age} 領{len(daimyo.controlled_provinces)}"
+                status_color = config.UI_TEXT_COLOR
+            else:
+                status_text = "死亡"
+                status_color = config.GRAY
+
+            status_surface = self.font_small.render(status_text, True, status_color)
+            self.screen.blit(status_surface, (panel_x + 90, y_pos ))
+
+            y_pos += 24
 
     def render_province_detail(self):
         """領地詳細画面を描画"""
@@ -1148,11 +1476,19 @@ class Game:
 
             y = 200
             for target in adjacent_enemies:
+                # 選択中の領地をハイライト表示
+                if self.selected_attack_target_id == target.id:
+                    highlight_rect = pygame.Rect(100, y, 600, 30)
+                    pygame.draw.rect(self.screen, config.UI_HIGHLIGHT_COLOR, highlight_rect)
+                    text_color = config.BLACK
+                else:
+                    text_color = config.UI_TEXT_COLOR
+
                 owner = self.game_state.get_daimyo(target.owner_daimyo_id)
                 owner_name = owner.clan_name if owner else "無所属"
 
                 info = f"{target.name} ({owner_name})  守備兵: {target.soldiers}人  城: {'有' if target.has_castle else '無'}"
-                text = self.font_small.render(info, True, config.UI_TEXT_COLOR)
+                text = self.font_small.render(info, True, text_color)
                 self.screen.blit(text, (120, y))
 
                 # 勝率予測（簡易版）
@@ -1167,17 +1503,24 @@ class Game:
                     recommendation = "不利"
                     color = config.STATUS_NEGATIVE
 
-                pred_text = self.font_small.render(f"  予測: {recommendation}", True, color)
+                pred_text = self.font_small.render(f"  予測: {recommendation}", True, text_color if self.selected_attack_target_id == target.id else color)
                 self.screen.blit(pred_text, (650, y))
 
                 y += 30
 
         # 説明
-        help_text = self.font_small.render("領地をクリックして攻撃", True, config.LIGHT_GRAY)
+        help_text = self.font_small.render("領地をクリックして選択", True, config.LIGHT_GRAY)
         self.screen.blit(help_text, (100, config.SCREEN_HEIGHT - 150))
 
-        # 戻るボタン
-        self.btn_close_detail.draw(self.screen)
+        # ボタン表示
+        # 決定ボタンは選択中のみ有効化
+        if self.selected_attack_target_id is not None:
+            self.btn_confirm_attack.enabled = True
+        else:
+            self.btn_confirm_attack.enabled = False
+
+        self.btn_confirm_attack.draw(self.screen)
+        self.btn_cancel_attack.draw(self.screen)
 
     def run(self):
         """メインゲームループ"""

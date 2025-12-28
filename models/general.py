@@ -48,6 +48,12 @@ class General:
         self.current_province_id: Optional[int] = None
 
         # ========================================
+        # 戦績
+        # ========================================
+        self.battle_wins = 0  # 勝利数
+        self.battle_losses = 0  # 敗北数
+
+        # ========================================
         # 特殊能力（将来の拡張用）
         # ========================================
         self.special_traits: List[str] = []

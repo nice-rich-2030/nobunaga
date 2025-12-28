@@ -43,7 +43,9 @@ desktop.ini
 logs/
 saves/
 screenshots/
+assets-test/
 
 # Temporary files
 *.tmp
 *.bak
+.env

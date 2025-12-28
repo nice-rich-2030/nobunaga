@@ -8,13 +8,15 @@ import config
 class Button:
     """ボタンウィジェット"""
 
-    def __init__(self, x, y, width, height, text, font, callback=None):
+    def __init__(self, x, y, width, height, text, font, callback=None, sound_manager=None, sound_type="decide"):
         self.rect = pygame.Rect(x, y, width, height)
         self.text = text
         self.font = font
         self.callback = callback
         self.is_hovered = False
         self.is_enabled = True
+        self.sound_manager = sound_manager
+        self.sound_type = sound_type  # "decide", "battle", "cancel"
 
     def draw(self, surface):
         """ボタンを描画"""
@@ -48,6 +50,9 @@ class Button:
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1 and self.rect.collidepoint(event.pos):
                 self.is_hovered = True  # クリック時にホバー状態を設定
+                # 効果音再生
+                if self.sound_manager:
+                    self.sound_manager.play(self.sound_type)
                 if self.callback:
                     self.callback()
                 return True

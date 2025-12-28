@@ -9,10 +9,11 @@ import config
 class EventHistoryScreen:
     """イベント履歴画面（簡易版）"""
 
-    def __init__(self, screen, font):
+    def __init__(self, screen, font, sound_manager=None):
         self.screen = screen
         self.font = font
         self.title_font = pygame.font.SysFont('meiryo', 20, bold=True)
+        self.sound_manager = sound_manager
 
         # 画面の状態
         self.is_visible = False
@@ -52,6 +53,9 @@ class EventHistoryScreen:
 
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
+                # キャンセル音再生
+                if self.sound_manager:
+                    self.sound_manager.play("cancel")
                 self.hide()
                 return True
             elif event.key == pygame.K_UP:
