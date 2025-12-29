@@ -25,11 +25,17 @@ class TurnManager:
 
     def execute_turn(self):
         """1ターン全体を実行（11フェーズ）"""
+        # プレイヤーコマンドイベントを保存（フェーズ5で記録されたもの）
+        player_events = self.turn_events.copy()
+
         self.turn_events.clear()
         self.battle_results.clear()
 
         # フェーズ1: ターン開始
         self._phase_1_turn_start()
+
+        # プレイヤーコマンドイベントを復元（フェーズ1の後、フェーズ4の前）
+        self.turn_events.extend(player_events)
 
         # フェーズ2: 収入と生産
         self._phase_2_income_production()

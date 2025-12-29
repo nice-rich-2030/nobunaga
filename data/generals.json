@@ -1,7 +1,7 @@
 {
   "generals": [
     {
-      "id": 1,
+      "id": 100,
       "name": "柴田勝家",
       "age": 28,
       "war_skill": 85,
@@ -11,7 +11,7 @@
       "starting_daimyo": 1
     },
     {
-      "id": 2,
+      "id": 101,
       "name": "丹羽長秀",
       "age": 26,
       "war_skill": 75,
@@ -21,7 +21,7 @@
       "starting_daimyo": 1
     },
     {
-      "id": 3,
+      "id": 102,
       "name": "滝川一益",
       "age": 32,
       "war_skill": 80,
@@ -31,7 +31,7 @@
       "starting_daimyo": 1
     },
     {
-      "id": 4,
+      "id": 103,
       "name": "明智光秀",
       "age": 30,
       "war_skill": 85,
@@ -41,7 +41,7 @@
       "starting_daimyo": 1
     },
     {
-      "id": 5,
+      "id": 104,
       "name": "竹中半兵衛",
       "age": 22,
       "war_skill": 70,
@@ -51,7 +51,7 @@
       "starting_daimyo": 2
     },
     {
-      "id": 6,
+      "id": 105,
       "name": "斎藤義龍",
       "age": 30,
       "war_skill": 75,
@@ -61,7 +61,7 @@
       "starting_daimyo": 2
     },
     {
-      "id": 7,
+      "id": 106,
       "name": "直江兼続",
       "age": 18,
       "war_skill": 80,
@@ -71,7 +71,7 @@
       "starting_daimyo": 3
     },
     {
-      "id": 8,
+      "id": 107,
       "name": "柿崎景家",
       "age": 35,
       "war_skill": 88,
@@ -81,7 +81,7 @@
       "starting_daimyo": 3
     },
     {
-      "id": 9,
+      "id": 108,
       "name": "山本勘助",
       "age": 55,
       "war_skill": 85,
@@ -91,7 +91,7 @@
       "starting_daimyo": 4
     },
     {
-      "id": 10,
+      "id": 109,
       "name": "馬場信春",
       "age": 45,
       "war_skill": 90,
@@ -101,7 +101,7 @@
       "starting_daimyo": 4
     },
     {
-      "id": 11,
+      "id": 110,
       "name": "内藤昌豊",
       "age": 42,
       "war_skill": 85,
@@ -111,7 +111,7 @@
       "starting_daimyo": 4
     },
     {
-      "id": 12,
+      "id": 111,
       "name": "小早川隆景",
       "age": 28,
       "war_skill": 85,
@@ -121,7 +121,7 @@
       "starting_daimyo": 5
     },
     {
-      "id": 13,
+      "id": 112,
       "name": "吉川元春",
       "age": 30,
       "war_skill": 92,
@@ -131,7 +131,7 @@
       "starting_daimyo": 5
     },
     {
-      "id": 14,
+      "id": 113,
       "name": "太原雪斎",
       "age": 60,
       "war_skill": 75,
@@ -141,7 +141,7 @@
       "starting_daimyo": 6
     },
     {
-      "id": 15,
+      "id": 114,
       "name": "松平元康",
       "age": 17,
       "war_skill": 80,

@@ -160,18 +160,20 @@ class CombatSystem:
         if province.governor_general_id:
             general_id = province.governor_general_id
 
-            # 大名ID範囲（1-6）かチェック
-            if 1 <= general_id <= 6:
+            # 大名ID範囲かチェック
+            if config.DAIMYO_ID_MIN <= general_id <= config.DAIMYO_ID_MAX:
                 # 大名を死亡させる
                 daimyo = self.game_state.get_daimyo(general_id)
                 if daimyo:
                     daimyo.is_alive = False
                     defeated_daimyo_id = general_id
                     print(f"[Combat] 大名 {daimyo.clan_name} {daimyo.name} が討死")
-            else:
+            elif config.GENERAL_ID_MIN <= general_id <= config.GENERAL_ID_MAX:
                 # 将軍を討ち取る（敗北した将軍は殺される）
                 if general_id in self.game_state.generals:
                     del self.game_state.generals[general_id]
+            else:
+                print(f"[Combat] Warning: Invalid general_id {general_id} found in governor_general_id")
 
             province.governor_general_id = None
 

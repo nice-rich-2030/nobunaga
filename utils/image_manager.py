@@ -33,26 +33,31 @@ class ImageManager:
         """武将肖像画を読み込む
 
         Args:
-            general_id: 武将ID (1-15)
+            general_id: 武将ID (config.GENERAL_ID_MIN～GENERAL_ID_MAX)
             size: 出力サイズ（width, height）
 
         Returns:
             読み込んだSurface、失敗時はNone
         """
         # 範囲チェック
-        if general_id < 1 or general_id > 15:
-            logger.warning(f"Invalid general_id: {general_id}. Must be 1-15.")
+        if general_id < config.GENERAL_ID_MIN or general_id > config.GENERAL_ID_MAX:
+            logger.warning(f"Invalid general_id: {general_id}. Must be {config.GENERAL_ID_MIN}-{config.GENERAL_ID_MAX}.")
             return None
 
-        # キャッシュキー生成
-        cache_key = f"general_{general_id:02d}_{size[0]}x{size[1]}"
+        # 武将ID（100～）を肖像画番号（1～15）に変換
+        # general_id 100 → portrait_num 1
+        # general_id 114 → portrait_num 15
+        portrait_num = ((general_id - config.GENERAL_ID_MIN) % 15) + 1
+
+        # キャッシュキー生成（武将IDで管理）
+        cache_key = f"general_{general_id}_{size[0]}x{size[1]}"
 
         # キャッシュにあれば返す
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        # ファイルパス
-        filename = f"general_{general_id:02d}.png"
+        # ファイルパス（肖像画番号を使用）
+        filename = f"general_{portrait_num:02d}.png"
         filepath = os.path.join(self.portraits_path, "generals", filename)
 
         # 画像ロード
@@ -70,7 +75,7 @@ class ImageManager:
         """大名肖像画を読み込む
 
         Args:
-            daimyo_id: 大名ID (1-6)、Noneの場合は失敗を返す
+            daimyo_id: 大名ID (config.DAIMYO_ID_MIN～DAIMYO_ID_MAX)、Noneの場合は失敗を返す
             size: 出力サイズ（width, height）
 
         Returns:
@@ -82,8 +87,8 @@ class ImageManager:
             return None
 
         # 範囲チェック
-        if daimyo_id < 1 or daimyo_id > 6:
-            logger.warning(f"Invalid daimyo_id: {daimyo_id}. Must be 1-6.")
+        if daimyo_id < config.DAIMYO_ID_MIN or daimyo_id > config.DAIMYO_ID_MAX:
+            logger.warning(f"Invalid daimyo_id: {daimyo_id}. Must be {config.DAIMYO_ID_MIN}-{config.DAIMYO_ID_MAX}.")
             return None
 
         # キャッシュキー生成
@@ -232,12 +237,12 @@ class ImageManager:
         """全肖像画をプリロード（起動時に使用）"""
         logger.info("Preloading all portraits...")
 
-        # 武将肖像（1-15）
-        for general_id in range(1, 16):
+        # 武将肖像（肖像画ファイル1-15を使用する武将ID 100-114）
+        for general_id in range(config.GENERAL_ID_MIN, config.GENERAL_ID_MIN + 15):
             self.load_general_portrait(general_id, (256, 256))
 
         # 大名肖像（1-6）
-        for daimyo_id in range(1, 7):
+        for daimyo_id in range(config.DAIMYO_ID_MIN, config.DAIMYO_ID_MIN + 6):
             self.load_daimyo_portrait(daimyo_id, (256, 256))
 
         logger.info(f"Preloaded {len(self._cache)} portraits")

@@ -163,6 +163,12 @@ EPIDEMIC_SOLDIER_LOSS = 50
 # ========================================
 # ゲームプレイ定数
 # ========================================
+# 大名と武将のID範囲
+DAIMYO_ID_MIN = 1
+DAIMYO_ID_MAX = 50  # 将来の拡張を考慮
+GENERAL_ID_MIN = 100
+GENERAL_ID_MAX = 999  # 武将は最大900人まで対応可能
+
 # 季節
 SEASONS = ["春", "夏", "秋", "冬"]
 SEASON_SPRING = 0
