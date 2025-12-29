@@ -1034,7 +1034,12 @@ if self.need_log_turn_state:
 ```
 [ターン開始]
   ↓
-Phase 1: 年齢+1、健康-1（春のみ）
+Phase 1: ターン開始、加齢処理（春のみ）
+  - 年齢+1
+  - 年齢に応じた健康減少（確率的）
+  - 健康0で自然死判定
+  - 大名死亡 → pending_daimyo_deaths に追加（全戦闘後に演出表示）
+  - 武将死亡 → turn_events に追加（ターン終了時にメッセージ表示）
   ↓
 Phase 2: ランダムイベント抽選
   ↓
@@ -1043,18 +1048,21 @@ Phase 3: 税収・米生産
 Phase 4: イベント実行（プレイヤー選択 or AI自動）
   ↓
 Phase 5: プレイヤーコマンド（UI）
-  ├→ 攻撃コマンド → pending_battles に追加
+  ├→ 攻撃コマンド → pending_battles に追加（Phase 8で計算）
   └→ 内政コマンド → 実行
   ↓
 Phase 6: AIコマンド
-  ├→ 攻撃コマンド → pending_battles に追加
+  ├→ 攻撃コマンド → pending_battles に追加（Phase 8で計算）
   └→ 内政コマンド → 実行
   ↓
 Phase 7: 内政効果適用
   ↓
 Phase 8: 戦闘計算（結果未適用）
   ├→ pending_battles 内の全戦闘を計算
-  └→ battle_results に結果を保存
+  │   - 各戦闘について resolve_battle() を呼び出し
+  │   - 全て「ターン開始時の領地状態」で計算
+  │   - この時点では領地所有権や兵力は変更されない
+  └→ battle_results に結果を保存（戦闘演出ループで使用）
   ↓
 Phase 9: 忠誠度・士気回復、農民増加
   ↓
@@ -1102,6 +1110,8 @@ Phase 10: 領地喪失による死亡判定（第2回）
 デバッグログ出力（DEBUG_MODE時）
   ↓
 大名死亡演出（あれば）
+  - Phase 1の自然死（老衰）
+  - 戦闘での討死（combat.py）
   ↓
 ターンメッセージ表示
   ↓
