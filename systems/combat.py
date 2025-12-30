@@ -183,6 +183,12 @@ class CombatSystem:
             if old_daimyo:
                 old_daimyo.remove_province(province.id)
 
+                # 全ての領地を失った場合は滅亡
+                if len(old_daimyo.controlled_provinces) == 0:
+                    old_daimyo.is_alive = False
+                    defeated_daimyo_id = old_owner
+                    print(f"[Combat] 大名 {old_daimyo.clan_name} {old_daimyo.name} が滅亡（全領地喪失）")
+
         # 新所有者に追加
         new_daimyo = self.game_state.get_daimyo(new_owner)
         if new_daimyo:

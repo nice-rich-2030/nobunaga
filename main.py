@@ -9,6 +9,7 @@ from datetime import datetime
 import os
 from core.game_state import GameState
 from core.turn_manager import TurnManager
+from core.turn_manager_v2 import TurnManagerV2
 from systems.economy import EconomySystem
 from systems.internal_affairs import InternalAffairsSystem
 from ui.widgets import Button, Panel, TextLabel, ProgressBar
@@ -66,6 +67,11 @@ class Game:
         self.economy_system = EconomySystem(self.game_state)
         self.internal_affairs = InternalAffairsSystem(self.game_state)
 
+        # V2ターンマネージャー（sequentialモード用）
+        self.turn_manager_v2 = None
+        if config.TURN_PROCESSING_MODE == "sequential":
+            self.turn_manager_v2 = TurnManagerV2(self.game_state)
+
         # 軍事システムのインポートと初期化
         from systems.military import MilitarySystem
         from systems.combat import CombatSystem
@@ -99,6 +105,15 @@ class Game:
         # AISystemにTurnManagerへの参照を設定
         self.ai_system.turn_manager = self.turn_manager
 
+        # TurnManagerV2にシステムを設定（sequentialモード用）
+        if self.turn_manager_v2:
+            self.turn_manager_v2.ai_system = self.ai_system
+            self.turn_manager_v2.diplomacy_system = self.diplomacy_system
+            self.turn_manager_v2.event_system = self.event_system
+            self.turn_manager_v2.internal_affairs = self.internal_affairs
+            self.turn_manager_v2.military_system = self.military_system
+            self.turn_manager_v2.transfer_system = self.transfer_system
+
         # ゲーム実行フラグ
         self.running = True
 
@@ -131,6 +146,12 @@ class Game:
         # デバッグログ出力フラグ
         self.need_log_turn_state = False  # ターン終了時にログ出力が必要かどうか
 
+        # V2モード状態管理（sequentialモード用）
+        self.v2_mode_state = None  # "waiting_player_input" / "animating" / None
+        self.v2_turn_generator = None  # generatorの参照保持
+        self.v2_player_internal_commands = []  # プレイヤーが登録した内政コマンド
+        self.v2_player_military_commands = []  # プレイヤーが登録した軍事コマンド
+
         # ボタンの作成
         self.create_buttons()
 
@@ -143,6 +164,16 @@ class Game:
             "ターン終了",
             self.font_medium,
             self.end_turn,
+            self.sound_manager,
+            "decide"
+        )
+
+        # V2モード用: 行動決定ボタン（プレイヤーの番終了用）
+        self.btn_confirm_actions_v2 = Button(
+            1100, button_y, 150, 40,
+            "行動決定",
+            self.font_medium,
+            self.confirm_player_actions_v2,
             self.sound_manager,
             "decide"
         )
@@ -310,7 +341,7 @@ class Game:
         return None
 
     def execute_command(self, command_type):
-        """コマンドを実行"""
+        """コマンドを実行（V2モードでは記録のみ、classicモードは即座に実行）"""
         if not self.selected_province_id:
             return
 
@@ -319,6 +350,12 @@ class Game:
             self.add_message("このターンは既にコマンドを実行しました")
             return
 
+        # V2モード: コマンドを記録だけして、「行動決定」時に実行
+        if config.TURN_PROCESSING_MODE == "sequential" and self.v2_mode_state == "waiting_player_input":
+            self._register_v2_command(command_type, province)
+            return
+
+        # classicモード: 即座に実行
         result = None
         if command_type == "cultivate":
             result = self.internal_affairs.execute_cultivation(province)
@@ -361,6 +398,68 @@ class Game:
                     event_msg = self._format_player_command_event(daimyo, province, command_type)
                     if event_msg:
                         self.turn_manager.turn_events.append(event_msg)
+
+    def _register_v2_command(self, command_type, province):
+        """V2モード: コマンドを記録（即座には実行しない）"""
+        # 内政コマンドと軍事コマンドを分類
+        internal_commands = ["cultivate", "develop_town", "flood_control", "give_rice",
+                           "transfer_soldiers", "transfer_gold", "transfer_rice", "assign_general"]
+        military_commands = ["recruit", "attack"]
+
+        if command_type in internal_commands:
+            # 内政コマンドの登録
+            if province.internal_command_used:
+                self.add_message("この領地は既に内政コマンドを登録しました")
+                return
+
+            # ダイアログ系コマンドは後で処理
+            if command_type in ["transfer_soldiers", "transfer_gold", "transfer_rice", "assign_general"]:
+                if command_type == "transfer_soldiers":
+                    self.show_transfer_dialog("soldiers")
+                elif command_type == "transfer_gold":
+                    self.show_transfer_dialog("gold")
+                elif command_type == "transfer_rice":
+                    self.show_transfer_dialog("rice")
+                elif command_type == "assign_general":
+                    self.show_general_assign_dialog()
+                return
+
+            self.v2_player_internal_commands.append({
+                "type": command_type,
+                "province_id": province.id
+            })
+            province.internal_command_used = True
+            self.add_message(f"{province.name}で{self._get_command_name(command_type)}を登録しました")
+
+        elif command_type in military_commands:
+            # 軍事コマンドの登録
+            if province.military_command_used:
+                self.add_message("この領地は既に軍事コマンドを登録しました")
+                return
+
+            if command_type == "attack":
+                # 攻撃対象選択画面へ
+                self.selected_attack_target_id = None
+                self.show_attack_selection = True
+                return
+
+            # 徴兵の場合
+            self.v2_player_military_commands.append({
+                "type": "recruit",
+                "province_id": province.id
+            })
+            province.military_command_used = True
+            self.add_message(f"{province.name}で徴兵を登録しました")
+
+    def _get_command_name(self, command_type):
+        """コマンドタイプから日本語名を取得"""
+        names = {
+            "cultivate": "開墾",
+            "develop_town": "町開発",
+            "flood_control": "治水",
+            "give_rice": "米配布"
+        }
+        return names.get(command_type, command_type)
 
     def execute_attack(self, target_province_id):
         """攻撃を実行"""
@@ -417,7 +516,11 @@ class Game:
                     if defender_daimyo:
                         defender_name = defender_daimyo.clan_name
                 event_msg = f"【{daimyo.clan_name}】{origin_province.name}から{defender_name}の{target_province.name}へ出陣（兵力{attack_force}人）"
-                self.turn_manager.turn_events.append(event_msg)
+                # V2モードとclassicモードで適切なターンマネージャーを使用
+                if config.TURN_PROCESSING_MODE == "sequential" and self.turn_manager_v2:
+                    self.turn_manager_v2.turn_events.append(event_msg)
+                else:
+                    self.turn_manager.turn_events.append(event_msg)
 
             self.show_attack_selection = False
             return {"success": True, "message": f"{target_province.name}への攻撃軍を編成しました（{attack_force}人）"}
@@ -426,6 +529,11 @@ class Game:
 
     def end_turn(self):
         """ターン終了"""
+        # モード分岐
+        if config.TURN_PROCESSING_MODE == "sequential" and self.turn_manager_v2:
+            self.end_turn_v2()
+            return
+
         winner = self.turn_manager.execute_turn()
 
         # ターンイベントを取得（戦闘メッセージは含まない）
@@ -479,6 +587,330 @@ class Game:
 
         # デバッグログ出力フラグを設定（実際の出力は戦闘演出後）
         self.need_log_turn_state = True
+
+    # ========================================
+    # V2モード（sequential）用メソッド
+    # ========================================
+
+    def end_turn_v2(self):
+        """V2モード: ターン終了（generator方式）"""
+        if not self.turn_manager_v2:
+            return
+
+        # generatorを開始
+        self.v2_turn_generator = self.turn_manager_v2.execute_turn()
+        self.v2_mode_state = "processing"
+
+        # 最初のイベントを処理
+        self.process_v2_turn_event()
+
+    def process_v2_turn_event(self):
+        """V2モード: generatorから次のイベントを処理"""
+        if not self.v2_turn_generator:
+            self.on_v2_turn_complete()
+            return
+
+        try:
+            event = next(self.v2_turn_generator)
+            event_type = event[0]
+
+            if event_type == "turn_start":
+                # ターン開始メッセージ
+                message = event[1]
+                self.add_message(message)
+                # 次のイベントへ
+                self.process_v2_turn_event()
+
+            elif event_type == "message":
+                # AI大名の内政コマンドメッセージ
+                message = event[1]
+                self.add_message(message)
+                # 次のイベントへ
+                self.process_v2_turn_event()
+
+            elif event_type == "death_animation":
+                # 死亡演出
+                death_data = event[1]
+                self.v2_mode_state = "animating"
+                self.daimyo_death_screen.show(
+                    death_data,
+                    on_finish=self.on_v2_death_animation_finished,
+                    on_play=self.restart_game,
+                    on_end=self.quit
+                )
+
+            elif event_type == "battle_animation":
+                # 戦闘演出
+                battle_data = event[1]
+                self.v2_mode_state = "animating"
+
+                # 戦闘記録を保存（ログ用）
+                self.turn_battle_records.append(battle_data)
+
+                # プレビュー → アニメーション
+                preview_data = {
+                    "attacker_province_id": battle_data["origin_province_id"],
+                    "defender_province_id": battle_data["target_province_id"],
+                    "attacker_name": battle_data["attacker_name"],
+                    "defender_name": battle_data["defender_name"]
+                }
+                self.battle_preview.show(
+                    preview_data,
+                    on_finish=lambda: self.show_v2_battle_animation(battle_data)
+                )
+
+            elif event_type == "player_turn":
+                # プレイヤーの番
+                daimyo_id = event[1]
+                self.v2_mode_state = "waiting_player_input"
+                self.v2_player_internal_commands = []
+                self.v2_player_military_commands = []
+                self.add_message("=== あなたの番です ===")
+
+            elif event_type == "victory":
+                # 勝利
+                player_daimyo = self.game_state.get_player_daimyo()
+                if player_daimyo:
+                    self.add_message(f"*** {player_daimyo.clan_name} {player_daimyo.name}が天下統一！***")
+                self.on_v2_turn_complete()
+
+            elif event_type == "game_over":
+                # ゲームオーバー
+                death_data = event[1]
+                self.add_message(f"*** {death_data['clan_name']} {death_data['name']}が滅亡しました ***")
+                # 死亡演出は既に表示されているはず
+
+        except StopIteration:
+            # ターン終了
+            self.on_v2_turn_complete()
+
+    def show_v2_battle_animation(self, battle_data):
+        """V2モード: 戦闘アニメーションを表示"""
+        self.battle_animation.show(
+            battle_data,
+            on_finish=lambda: self.on_v2_battle_animation_finished(battle_data)
+        )
+
+    def on_v2_battle_animation_finished(self, battle_data):
+        """V2モード: 戦闘演出終了時のコールバック"""
+        # 戦闘結果は既にturn_manager_v2で適用済み
+        # メッセージを表示
+        result = battle_data.get("result")
+        if result:
+            if result.attacker_won:
+                self.add_message(f"【戦闘】{battle_data['attacker_name']}が{battle_data['defender_province']}を占領")
+                # 勢力図をハイライト
+                for province in self.game_state.provinces.values():
+                    if province.name == battle_data['defender_province']:
+                        self.power_map.set_highlight(province.id)
+                        break
+            else:
+                self.add_message(f"【戦闘】{battle_data['defender_name']}が{battle_data['defender_province']}を防衛")
+
+        # 次のイベントへ
+        self.process_v2_turn_event()
+
+    def on_v2_death_animation_finished(self):
+        """V2モード: 死亡演出終了時のコールバック"""
+        # 次のイベントへ
+        self.process_v2_turn_event()
+
+    def on_v2_turn_complete(self):
+        """V2モード: ターン完了"""
+        self.v2_turn_generator = None
+        self.v2_mode_state = None
+
+        # ターンイベントをメッセージログに追加
+        if self.turn_manager_v2:
+            for event in self.turn_manager_v2.get_turn_events():
+                # AI大名のコマンドメッセージ、戦闘メッセージ、ターン開始メッセージは既に表示済み
+                # 【収入】【維持費】などのプレイヤー向けメッセージのみここで表示
+                if ("【戦闘】" not in event and "ターン" not in event and "開始" not in event and
+                    "【" not in event or event.startswith("【収入】") or event.startswith("【維持費】")):
+                    self.add_message(event)
+
+        # デバッグログ出力（V2モード用にturn_managerをturn_manager_v2に参照変更）
+        if config.DEBUG_MODE and self.log_file:
+            self._log_turn_state_v2()
+
+        self.add_message("=== ターン終了 ===")
+
+    def confirm_player_actions_v2(self):
+        """V2モード: プレイヤーの行動を確定"""
+        if self.v2_mode_state != "waiting_player_input":
+            return
+
+        # generatorに内政コマンドと軍事コマンドを送信して再開
+        self.v2_mode_state = "processing"
+        try:
+            event = self.v2_turn_generator.send({
+                "internal_commands": self.v2_player_internal_commands,
+                "military_commands": self.v2_player_military_commands
+            })
+            # 次のイベントを処理（send後に返されたイベント）
+            self._handle_v2_event(event)
+        except StopIteration:
+            self.on_v2_turn_complete()
+
+    def _handle_v2_event(self, event):
+        """V2モード: イベントをハンドル"""
+        event_type = event[0]
+
+        if event_type == "message":
+            # AI大名の内政コマンドメッセージ
+            message = event[1]
+            self.add_message(message)
+            # 次のイベントを処理
+            try:
+                next_event = next(self.v2_turn_generator)
+                self._handle_v2_event(next_event)
+            except StopIteration:
+                self.on_v2_turn_complete()
+
+        elif event_type == "death_animation":
+            death_data = event[1]
+            self.v2_mode_state = "animating"
+            self.daimyo_death_screen.show(
+                death_data,
+                on_finish=self.on_v2_death_animation_finished,
+                on_play=self.restart_game,
+                on_end=self.quit
+            )
+        elif event_type == "battle_animation":
+            battle_data = event[1]
+            self.v2_mode_state = "animating"
+            self.turn_battle_records.append(battle_data)
+            preview_data = {
+                "attacker_province_id": battle_data["origin_province_id"],
+                "defender_province_id": battle_data["target_province_id"],
+                "attacker_name": battle_data["attacker_name"],
+                "defender_name": battle_data["defender_name"]
+            }
+            self.battle_preview.show(
+                preview_data,
+                on_finish=lambda: self.show_v2_battle_animation(battle_data)
+            )
+        elif event_type == "player_turn":
+            daimyo_id = event[1]
+            self.v2_mode_state = "waiting_player_input"
+            self.v2_player_internal_commands = []
+            self.v2_player_military_commands = []
+            self.add_message("=== あなたの番です ===")
+        elif event_type == "victory":
+            player_daimyo = self.game_state.get_player_daimyo()
+            if player_daimyo:
+                self.add_message(f"*** {player_daimyo.clan_name} {player_daimyo.name}が天下統一！***")
+            self.on_v2_turn_complete()
+        elif event_type == "game_over":
+            death_data = event[1]
+            self.add_message(f"*** {death_data['clan_name']} {death_data['name']}が滅亡しました ***")
+
+    def _log_turn_state_v2(self):
+        """V2モード: ターン終了時のゲーム状態をログに出力"""
+        if not config.DEBUG_MODE or not self.log_file:
+            return
+
+        log = []
+        log.append(f"\n{'='*80}\n")
+        log.append(f"TURN {self.game_state.current_turn} - {self.game_state.get_season_name()} {self.game_state.get_year()}年 [V2モード]\n")
+        log.append(f"{'='*80}\n\n")
+
+        # ターンイベント情報
+        if self.turn_manager_v2 and self.turn_manager_v2.turn_events:
+            log.append(f"【ターンイベント】\n")
+            for event in self.turn_manager_v2.turn_events:
+                log.append(f"  - {event}\n")
+            log.append("\n")
+
+        # 戦闘情報
+        if self.turn_battle_records:
+            log.append(f"【戦闘結果】\n")
+            for i, battle in enumerate(self.turn_battle_records, 1):
+                attacker_name = battle.get("attacker_name", "不明")
+                defender_name = battle.get("defender_name", "不明")
+                origin_province = battle.get("attacker_province", "不明")
+                target_province = battle.get("defender_province", "不明")
+
+                attacker_initial = battle.get("attacker_troops", 0)
+                defender_initial = battle.get("defender_troops", 0)
+
+                result_obj = battle.get("result")
+                if result_obj:
+                    attacker_remaining = result_obj.attacker_remaining
+                    defender_remaining = result_obj.defender_remaining
+                    attacker_casualties = result_obj.attacker_casualties
+                    defender_casualties = result_obj.defender_casualties
+                    attacker_won = result_obj.attacker_won
+                else:
+                    attacker_remaining = 0
+                    defender_remaining = 0
+                    attacker_casualties = 0
+                    defender_casualties = 0
+                    attacker_won = False
+
+                winner = "攻撃側" if attacker_won else "防御側"
+                result_text = "勝利" if attacker_won else "敗北"
+
+                attacker_general = battle.get("attacker_general", "なし")
+                defender_general = battle.get("defender_general", "なし")
+
+                log.append(f"  戦闘{i}: {origin_province}({attacker_name}) vs {target_province}({defender_name})\n")
+                log.append(f"      攻撃側将軍:{attacker_general} / 防御側将軍:{defender_general}\n")
+                log.append(f"      攻撃側: 初期兵力{attacker_initial} → 残存{attacker_remaining} (損失{attacker_casualties})\n")
+                log.append(f"      防御側: 初期兵力{defender_initial} → 残存{defender_remaining} (損失{defender_casualties})\n")
+                log.append(f"      結果: {winner}の{result_text}\n")
+
+                if attacker_won:
+                    log.append(f"      {target_province}を{attacker_name}が占領\n")
+                else:
+                    log.append(f"      {defender_name}が{target_province}を守り切った\n")
+            log.append("\n")
+            # 戦闘記録をクリア
+            self.turn_battle_records = []
+
+        # 大名情報
+        log.append(f"【大名情報】\n")
+        for daimyo in sorted(self.game_state.daimyo.values(), key=lambda d: d.id):
+            status = "生存" if daimyo.is_alive else "死亡"
+            log.append(f"  [{daimyo.id}] {daimyo.clan_name} {daimyo.name} ({status})\n")
+            log.append(f"      年齢:{daimyo.age} 健康:{daimyo.health} 野心:{daimyo.ambition}\n")
+            log.append(f"      魅力:{daimyo.charm} 知力:{daimyo.intelligence} 武力:{daimyo.war_skill}\n")
+            log.append(f"      支配領地数:{len(daimyo.controlled_provinces)} 領地ID:{sorted(daimyo.controlled_provinces)}\n")
+
+        # 将軍情報
+        log.append(f"\n【将軍情報】\n")
+        for general in sorted(self.game_state.generals.values(), key=lambda g: g.id):
+            serving = f"仕官先:{general.serving_daimyo_id}" if general.serving_daimyo_id else "浪人"
+            assigned = f"配置:{general.current_province_id}" if general.current_province_id else "未配置"
+            log.append(f"  [{general.id}] {general.name} ({serving}, {assigned})\n")
+            log.append(f"      年齢:{general.age} 健康:{general.health}\n")
+            log.append(f"      統率:{general.leadership} 武力:{general.war_skill} 知力:{general.intelligence} 政治:{general.politics}\n")
+
+        # 領地情報
+        log.append(f"\n【領地情報】\n")
+        for province in sorted(self.game_state.provinces.values(), key=lambda p: p.id):
+            owner_name = "無所属"
+            if province.owner_daimyo_id:
+                owner = self.game_state.get_daimyo(province.owner_daimyo_id)
+                if owner:
+                    owner_name = f"{owner.clan_name}"
+
+            governor_name = "なし"
+            if province.governor_general_id:
+                if config.DAIMYO_ID_MIN <= province.governor_general_id <= config.DAIMYO_ID_MAX:
+                    gov = self.game_state.get_daimyo(province.governor_general_id)
+                    if gov:
+                        governor_name = f"大名:{gov.name}"
+                elif config.GENERAL_ID_MIN <= province.governor_general_id <= config.GENERAL_ID_MAX:
+                    gov = self.game_state.get_general(province.governor_general_id)
+                    if gov:
+                        governor_name = f"将軍:{gov.name}"
+
+            log.append(f"  [{province.id:2d}] {province.name} (所有:{owner_name}, 守将:{governor_name})\n")
+            log.append(f"      兵:{province.soldiers} 農民:{province.peasants} 金:{province.gold} 米:{province.rice}\n")
+            log.append(f"      開発Lv:{province.development_level} 町Lv:{province.town_level} 農民忠誠:{province.peasant_loyalty} 兵士士気:{province.soldier_morale}\n")
+
+        self.write_debug_log(''.join(log))
 
     def log_turn_state(self):
         """ターン終了時のゲーム状態をログに出力"""
@@ -810,7 +1242,20 @@ class Game:
         self.current_battle_index = 0
         self.current_death_index = 0
 
-        # 7. 再開メッセージ
+        # 7. V2モード状態のリセット
+        self.v2_mode_state = None
+        self.v2_turn_generator = None
+        self.v2_player_military_commands = []
+        if self.turn_manager_v2:
+            self.turn_manager_v2.game_state = self.game_state
+            self.turn_manager_v2.ai_system = self.ai_system
+            self.turn_manager_v2.diplomacy_system = self.diplomacy_system
+            self.turn_manager_v2.event_system = self.event_system
+            self.turn_manager_v2.internal_affairs = self.internal_affairs
+            self.turn_manager_v2.military_system = self.military_system
+            self.turn_manager_v2.transfer_system = self.transfer_system
+
+        # 8. 再開メッセージ
         self.add_message("=== ゲーム再開 ===")
 
     def on_event_choice_selected(self, choice):
@@ -933,7 +1378,11 @@ class Game:
                 if daimyo and daimyo.is_player and target_province:
                     resource_name = {"soldiers": "兵", "gold": "金", "rice": "米"}[resource_type]
                     event_msg = f"【{daimyo.clan_name}】{province.name}から{target_province.name}へ{resource_name}{amount}を転送"
-                    self.turn_manager.turn_events.append(event_msg)
+                    # V2モードとclassicモードで適切なターンマネージャーを使用
+                    if config.TURN_PROCESSING_MODE == "sequential" and self.turn_manager_v2:
+                        self.turn_manager_v2.turn_events.append(event_msg)
+                    else:
+                        self.turn_manager.turn_events.append(event_msg)
 
     def show_general_assign_dialog(self):
         """将軍配置ダイアログを表示"""
@@ -995,7 +1444,11 @@ class Game:
                 daimyo = self.game_state.get_daimyo(province.owner_daimyo_id)
                 if daimyo and daimyo.is_player:
                     event_msg = f"【{daimyo.clan_name}】{general.name}を{province.name}の守将に任命"
-                    self.turn_manager.turn_events.append(event_msg)
+                    # V2モードとclassicモードで適切なターンマネージャーを使用
+                    if config.TURN_PROCESSING_MODE == "sequential" and self.turn_manager_v2:
+                        self.turn_manager_v2.turn_events.append(event_msg)
+                    else:
+                        self.turn_manager.turn_events.append(event_msg)
 
     def _confirm_attack(self):
         """攻撃決定ボタンのコールバック"""
@@ -1181,22 +1634,37 @@ class Game:
                     self.handle_attack_target_click(event.pos)
             elif self.show_province_detail:
                 self.btn_close_detail.handle_event(event)
-                self.btn_cultivate.handle_event(event)
-                self.btn_develop_town.handle_event(event)
-                self.btn_flood_control.handle_event(event)
-                self.btn_give_rice.handle_event(event)
-                self.btn_recruit.handle_event(event)
-                self.btn_attack.handle_event(event)
-                self.btn_transfer_soldiers.handle_event(event)
-                self.btn_transfer_gold.handle_event(event)
-                self.btn_transfer_rice.handle_event(event)
-                self.btn_assign_general.handle_event(event)
-            else:
-                self.btn_end_turn.handle_event(event)
 
-                # 領地クリック処理
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    self.handle_province_click(event.pos)
+                # V2モード: プレイヤーの番のみコマンド実行可能
+                # classicモード: いつでもコマンド実行可能
+                can_execute_command = (
+                    config.TURN_PROCESSING_MODE == "classic" or
+                    (config.TURN_PROCESSING_MODE == "sequential" and
+                     self.v2_mode_state == "waiting_player_input")
+                )
+
+                if can_execute_command:
+                    self.btn_cultivate.handle_event(event)
+                    self.btn_develop_town.handle_event(event)
+                    self.btn_flood_control.handle_event(event)
+                    self.btn_give_rice.handle_event(event)
+                    self.btn_recruit.handle_event(event)
+                    self.btn_attack.handle_event(event)
+                    self.btn_transfer_soldiers.handle_event(event)
+                    self.btn_transfer_gold.handle_event(event)
+                    self.btn_transfer_rice.handle_event(event)
+                    self.btn_assign_general.handle_event(event)
+            else:
+                # V2モードで「プレイヤーの番」の場合は「行動決定」ボタンを使用
+                if config.TURN_PROCESSING_MODE == "sequential" and self.v2_mode_state == "waiting_player_input":
+                    self.btn_confirm_actions_v2.handle_event(event)
+                elif self.v2_mode_state is None:  # 処理中でない場合のみ
+                    self.btn_end_turn.handle_event(event)
+
+                # 領地クリック処理（V2の処理中・アニメーション中は無効）
+                if self.v2_mode_state not in ("processing", "animating"):
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        self.handle_province_click(event.pos)
 
     def handle_province_click(self, pos):
         """領地クリック処理"""
@@ -1377,7 +1845,16 @@ class Game:
         self.draw_daimyo_health_status()
 
         # ボタン（メッセージログの上に配置）
-        self.btn_end_turn.draw(self.screen)
+        # V2モードで「プレイヤーの番」の場合は「行動決定」ボタンを表示
+        if config.TURN_PROCESSING_MODE == "sequential" and self.v2_mode_state == "waiting_player_input":
+            self.btn_confirm_actions_v2.draw(self.screen)
+        elif self.v2_mode_state is None:  # V2モードで処理中でない、またはclassicモード
+            # ボタンのテキストを状態に応じて変更
+            if self.game_state.current_turn == 0:
+                self.btn_end_turn.text = "統一開始"
+            else:
+                self.btn_end_turn.text = "次のターン"
+            self.btn_end_turn.draw(self.screen)
 
         # 操作説明（ボタンの右側）
         help_y = config.SCREEN_HEIGHT - 30
@@ -1542,16 +2019,28 @@ class Game:
 
         # コマンドボタン
         province = self.game_state.get_province(self.selected_province_id)
+
+        # V2モード: プレイヤーの番のみコマンド実行可能
+        can_execute_command = (
+            config.TURN_PROCESSING_MODE == "classic" or
+            (config.TURN_PROCESSING_MODE == "sequential" and
+             self.v2_mode_state == "waiting_player_input")
+        )
+
         self.btn_cultivate.set_enabled(
+            can_execute_command and
             province.can_afford(gold=config.CULTIVATION_COST) and not province.command_used_this_turn
         )
         self.btn_develop_town.set_enabled(
+            can_execute_command and
             province.can_afford(gold=config.TOWN_DEVELOPMENT_COST) and not province.command_used_this_turn
         )
         self.btn_flood_control.set_enabled(
+            can_execute_command and
             province.can_afford(gold=config.FLOOD_CONTROL_COST) and not province.command_used_this_turn
         )
         self.btn_give_rice.set_enabled(
+            can_execute_command and
             province.can_afford(rice=config.GIVE_RICE_AMOUNT) and not province.command_used_this_turn
         )
 
@@ -1560,8 +2049,12 @@ class Game:
         self.btn_flood_control.draw(self.screen)
         self.btn_give_rice.draw(self.screen)
 
+        # ステータスメッセージ表示
         if province.command_used_this_turn:
             status_text = self.font_small.render("このターンのコマンドは実行済みです", True, config.STATUS_NEUTRAL)
+            self.screen.blit(status_text, (840, 680))
+        elif not can_execute_command:
+            status_text = self.font_small.render("「ターン終了」を押してください", True, config.STATUS_NEUTRAL)
             self.screen.blit(status_text, (840, 680))
 
         # 軍事コマンドパネル
@@ -1571,11 +2064,13 @@ class Game:
         # 軍事ボタンの有効/無効を設定
         recruit_cost = 100 * config.RECRUIT_COST_PER_SOLDIER  # 100人 × 2 = 200金
         self.btn_recruit.set_enabled(
+            can_execute_command and
             province.peasants >= 100 and
             province.gold >= recruit_cost and
             not province.command_used_this_turn
         )
         self.btn_attack.set_enabled(
+            can_execute_command and
             province.soldiers >= 100 and not province.command_used_this_turn
         )
 
@@ -1592,12 +2087,15 @@ class Game:
 
         # 転送ボタンの有効/無効を設定
         self.btn_transfer_soldiers.set_enabled(
+            can_execute_command and
             has_targets and province.soldiers > 10 and not province.command_used_this_turn
         )
         self.btn_transfer_gold.set_enabled(
+            can_execute_command and
             has_targets and province.gold > 0 and not province.command_used_this_turn
         )
         self.btn_transfer_rice.set_enabled(
+            can_execute_command and
             has_targets and province.rice > 0 and not province.command_used_this_turn
         )
 
@@ -1606,7 +2104,7 @@ class Game:
         self.btn_transfer_rice.draw(self.screen)
 
         # 将軍配置ボタンの有効化設定と描画
-        self.btn_assign_general.set_enabled(True)  # 将軍配置はターン制限なし
+        self.btn_assign_general.set_enabled(can_execute_command)
         self.btn_assign_general.draw(self.screen)
 
         # 転送情報の表示

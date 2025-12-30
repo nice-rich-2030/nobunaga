@@ -11,7 +11,10 @@
       "Bash(dir:*)",
       "Bash(timeout /t 3 /nobreak)",
       "Bash(del \"c:\\\\Users\\\\tozka\\\\src\\\\nobunaga\\\\ui\\\\daimyo_death_screen.py\")",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(timeout 5 python:*)",
+      "Bash(cmd /c \"dir /b /o-d *.log 2>nul\")",
+      "Bash(ls:*)"
     ]
   }
 }
