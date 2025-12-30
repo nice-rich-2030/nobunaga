@@ -301,10 +301,17 @@ class TurnManagerV2:
         # ランダム順序で大名を取得
         self.current_daimyo_order = self._get_randomized_daimyo_order()
 
+        # デバッグログ: 大名の処理順序を出力
+        order_names = [self.game_state.get_daimyo(did).clan_name for did in self.current_daimyo_order
+                       if self.game_state.get_daimyo(did) and self.game_state.get_daimyo(did).is_alive]
+        print(f"[DEBUG-S3開始] 大名処理順序: {' → '.join(order_names)}")
+
         for daimyo_id in self.current_daimyo_order:
             daimyo = self.game_state.get_daimyo(daimyo_id)
             if not daimyo or not daimyo.is_alive:
                 continue
+
+            print(f"\n[DEBUG-S3] === {daimyo.clan_name}のターン開始 ===")
 
             # 軍事コマンドリスト（この大名の番で登録されたもの）
             military_commands = []
@@ -312,10 +319,13 @@ class TurnManagerV2:
             if daimyo.is_player:
                 # Phase2: プレイヤー大名のコマンド選択
                 # UIへ制御を渡してプレイヤーの入力を待つ
+                print(f"[DEBUG-プレイヤーターン] プレイヤー入力待機中...")
                 player_result = yield ("player_turn", daimyo_id)
+                print(f"[DEBUG-プレイヤーターン] プレイヤー入力受信: {player_result}")
 
                 # プレイヤーが登録した内政コマンドを実行
                 if player_result and "internal_commands" in player_result:
+                    print(f"[DEBUG-プレイヤーターン] 内政コマンド数: {len(player_result['internal_commands'])}")
                     for cmd in player_result["internal_commands"]:
                         province = self.game_state.get_province(cmd["province_id"])
                         if province:
@@ -324,6 +334,7 @@ class TurnManagerV2:
                 # プレイヤーが登録した軍事コマンドを受け取る
                 if player_result and "military_commands" in player_result:
                     military_commands = player_result["military_commands"]
+                    print(f"[DEBUG-プレイヤーターン] 軍事コマンド数: {len(military_commands)}")
             else:
                 # Phase1: AI大名のコマンド自動選択
                 # generatorを実行してメッセージをyield、最後に軍事コマンドリストを取得
@@ -337,7 +348,9 @@ class TurnManagerV2:
                     military_commands = e.value if e.value is not None else []
 
             # Phase3: 軍事コマンドリストの順次実行
+            print(f"[DEBUG-S3] {daimyo.clan_name}の軍事コマンド実行開始（コマンド数: {len(military_commands)}）")
             result = yield from self._execute_military_commands(daimyo, military_commands)
+            print(f"[DEBUG-S3] === {daimyo.clan_name}のターン終了 ===\n")
             if result:
                 return result
 
@@ -370,7 +383,13 @@ class TurnManagerV2:
             if p.owner_daimyo_id == daimyo.id
         ]
 
+        print(f"[DEBUG-AI実行] {daimyo.clan_name}の領地数: {len(ai_provinces)}")
+        if ai_provinces:
+            province_names = [p.name for p in ai_provinces]
+            print(f"[DEBUG-AI実行] {daimyo.clan_name}の領地: {', '.join(province_names)}")
+
         if not ai_provinces:
+            print(f"[DEBUG-AI実行] {daimyo.clan_name}は領地なし、コマンド決定をスキップ")
             return military_commands
 
         # 将軍配置（内政コマンド扱い）
@@ -527,18 +546,29 @@ class TurnManagerV2:
 
     def _ai_decide_military_action(self, province: Province, daimyo: Daimyo) -> Dict:
         """AI: 軍事行動を決定"""
+        print(f"[DEBUG-決定チェック] {daimyo.clan_name}の{province.name}: 兵{province.soldiers}, 軍事コマンド使用済み={province.military_command_used}")
+
         # 攻撃可能な隣接敵領地があり、兵力が十分な場合は攻撃
         if province.soldiers >= 150:
             target_id = self._find_attack_target(province, daimyo.id)
+            print(f"[DEBUG-決定チェック] {daimyo.clan_name}の{province.name}: 攻撃対象検索結果={target_id}")
             if target_id:
                 target = self.game_state.get_province(target_id)
                 attack_force = int(province.soldiers * 0.8)
+
+                # デバッグログ: 決定時の情報を記録
+                target_owner = self.game_state.get_daimyo(target.owner_daimyo_id)
+                target_owner_name = target_owner.clan_name if target_owner else "無所属"
+                print(f"[DEBUG-決定] {daimyo.clan_name}が{province.name}(兵{province.soldiers})から{target_owner_name}の{target.name}(兵{target.soldiers})への攻撃を決定（攻撃兵力{attack_force}）")
+
                 return {
                     "type": "attack",
                     "target_id": target_id,
                     "attack_force": attack_force,
                     "general_id": province.governor_general_id
                 }
+        else:
+            print(f"[DEBUG-決定チェック] {daimyo.clan_name}の{province.name}: 兵力不足（{province.soldiers} < 150）")
 
         # 徴兵が必要かチェック
         max_enemy = self._get_max_adjacent_enemy_soldiers(province, daimyo.id)
@@ -547,31 +577,49 @@ class TurnManagerV2:
             if (province.soldiers < required and
                 province.peasants >= 100 and
                 province.gold >= config.RECRUIT_COST_PER_SOLDIER * 100):
+                print(f"[DEBUG-決定] {daimyo.clan_name}が{province.name}で徴兵を決定")
                 return {"type": "recruit", "amount": 100}
 
         return {"type": "none"}
 
     def _find_attack_target(self, province: Province, daimyo_id: int) -> Optional[int]:
         """攻撃対象を探す"""
+        daimyo = self.game_state.get_daimyo(daimyo_id)
+        print(f"[DEBUG-攻撃対象検索] {daimyo.clan_name}の{province.name}から攻撃可能な隣接領地を検索中...")
         candidates = []
 
         for adj_id in province.adjacent_provinces:
             adj = self.game_state.get_province(adj_id)
-            if not adj or adj.owner_daimyo_id == daimyo_id:
+            if not adj:
+                continue
+
+            adj_owner = self.game_state.get_daimyo(adj.owner_daimyo_id) if adj.owner_daimyo_id else None
+            adj_owner_name = adj_owner.clan_name if adj_owner else "無所属"
+
+            if adj.owner_daimyo_id == daimyo_id:
+                print(f"  {adj.name}({adj_owner_name}): 自領地のためスキップ")
                 continue
 
             # 外交関係をチェック
             if self.diplomacy_system and not self.diplomacy_system.can_attack(daimyo_id, adj.owner_daimyo_id):
+                print(f"  {adj.name}({adj_owner_name}): 外交関係により攻撃不可")
                 continue
 
             # 戦力比較
-            if province.soldiers >= adj.soldiers * 1.35:
+            required = adj.soldiers * 1.35
+            if province.soldiers >= required:
+                print(f"  {adj.name}({adj_owner_name}): 攻撃可能（兵{province.soldiers} >= {required:.0f}）")
                 candidates.append((adj_id, adj.soldiers))
+            else:
+                print(f"  {adj.name}({adj_owner_name}): 兵力不足（兵{province.soldiers} < {required:.0f}）")
 
         if candidates:
             candidates.sort(key=lambda x: x[1])
+            target = self.game_state.get_province(candidates[0][0])
+            print(f"[DEBUG-攻撃対象検索] 攻撃対象決定: {target.name}")
             return candidates[0][0]
 
+        print(f"[DEBUG-攻撃対象検索] 攻撃可能な対象なし")
         return None
 
     def _get_max_adjacent_enemy_soldiers(self, province: Province, daimyo_id: int) -> int:
@@ -683,6 +731,9 @@ class TurnManagerV2:
                 if not target_province:
                     continue
 
+                # デバッグログ: 実行時の情報を記録
+                print(f"[DEBUG-実行] {daimyo.clan_name}の軍事コマンド実行: {province.name}(現在兵{province.soldiers})から{target_province.name}へ攻撃（攻撃兵力{attack_force}）")
+
                 # 出陣ログ
                 defender = self.game_state.get_daimyo(target_province.owner_daimyo_id)
                 defender_name = defender.clan_name if defender else "無所属"
@@ -696,6 +747,10 @@ class TurnManagerV2:
                         province, target_province, attack_force, general_id
                     )
                     if not result["success"]:
+                        # 攻撃失敗のログを追加
+                        fail_msg = f"【{daimyo.clan_name}】{province.name}からの出陣失敗: {result.get('message', '不明')}（必要兵力{attack_force}、現在{province.soldiers}）"
+                        self.turn_events.append(fail_msg)
+                        print(f"[DEBUG] {fail_msg}")
                         continue
 
                     army = result["army"]
@@ -753,7 +808,7 @@ class TurnManagerV2:
                                 "clan_name": defeated_daimyo.clan_name,
                                 "age": defeated_daimyo.age,
                                 "is_player": defeated_daimyo.is_player,
-                                "cause": "defeat"  # 敗北
+                                "cause": "territory_loss"  # 全領地喪失による滅亡
                             }
 
                             yield ("death_animation", death_data)

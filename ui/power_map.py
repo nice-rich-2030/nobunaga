@@ -157,7 +157,10 @@ class PowerMap:
                 x1, y1 = self._convert_position(province.position)
                 x2, y2 = self._convert_position(adj_province.position)
 
-                # 接続線を描画（アンチエイリアシング付き）
+                # 接続線を描画（灰色の縁を追加）
+                # まず灰色の線を描画（縁、幅2）
+                pygame.draw.line(self.screen, (128, 128, 128), (x1, y1), (x2, y2), 2)
+                # 次に通常の線を描画（本体）
                 gfxdraw.line(self.screen, x1, y1, x2, y2, (60, 60, 60))
 
     def _draw_province(self, province, game_state):
