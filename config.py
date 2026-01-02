@@ -127,6 +127,10 @@ REVOLT_THRESHOLD = 20  # この値以下で反乱リスク
 HIGH_LOYALTY_THRESHOLD = 80
 HIGH_LOYALTY_BONUS = 1.1  # 10%生産ボーナス
 
+# 軍報システム - 治安悪化警告
+LOYALTY_WARNING_THRESHOLD = 30  # 反乱警告閾値
+LOYALTY_CHANGE_THRESHOLD = -20  # 大幅低下閾値
+
 MORALE_DECAY_RATE = 5  # 米が十分な時の士気上昇
 MORALE_VICTORY_BOOST = 10
 MORALE_DEFEAT_PENALTY = -20
@@ -239,10 +243,3 @@ BOTTOM_PANEL_HEIGHT = 60
 # ========================================
 DEBUG_MODE = True
 SHOW_FPS = True
-
-# ========================================
-# ターン処理方式
-# ========================================
-# "classic": 現行の11フェーズ方式（全戦闘を一括計算後に演出）
-# "sequential": 新方式（大名順逐次処理、各戦闘を即時計算・演出・適用）
-TURN_PROCESSING_MODE = "sequential"
