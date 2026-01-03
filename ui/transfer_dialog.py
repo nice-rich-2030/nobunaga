@@ -44,8 +44,12 @@ class TransferDialog:
         # ボタン状態
         self.confirm_button_rect = None
         self.cancel_button_rect = None
-        self.increase_button_rect = None
-        self.decrease_button_rect = None
+        self.increase_10_button_rect = None
+        self.decrease_10_button_rect = None
+        self.increase_50_button_rect = None
+        self.decrease_50_button_rect = None
+        self.increase_100_button_rect = None
+        self.decrease_100_button_rect = None
         self.target_rects = []
 
     def show(
@@ -107,9 +111,17 @@ class TransferDialog:
                 self._confirm()
             elif self.cancel_button_rect and self.cancel_button_rect.collidepoint(mouse_pos):
                 self._cancel()
-            elif self.increase_button_rect and self.increase_button_rect.collidepoint(mouse_pos):
+            elif self.increase_100_button_rect and self.increase_100_button_rect.collidepoint(mouse_pos):
+                self._increase_amount(100)
+            elif self.decrease_100_button_rect and self.decrease_100_button_rect.collidepoint(mouse_pos):
+                self._decrease_amount(100)
+            elif self.increase_50_button_rect and self.increase_50_button_rect.collidepoint(mouse_pos):
+                self._increase_amount(50)
+            elif self.decrease_50_button_rect and self.decrease_50_button_rect.collidepoint(mouse_pos):
+                self._decrease_amount(50)
+            elif self.increase_10_button_rect and self.increase_10_button_rect.collidepoint(mouse_pos):
                 self._increase_amount(10)
-            elif self.decrease_button_rect and self.decrease_button_rect.collidepoint(mouse_pos):
+            elif self.decrease_10_button_rect and self.decrease_10_button_rect.collidepoint(mouse_pos):
                 self._decrease_amount(10)
 
     def draw(self):
@@ -187,29 +199,68 @@ class TransferDialog:
             self.screen.blit(note_text, (self.dialog_x + 20, note_y))
             amount_y = note_y  # ボタンの位置を調整
 
-        # 増減ボタン
+        # 増減ボタン（-100, -50, -10, +10, +50, +100）
         button_y = amount_y + 30
-        self.decrease_button_rect = pygame.Rect(self.dialog_x + 150, button_y, 60, 30)
-        self.increase_button_rect = pygame.Rect(self.dialog_x + 220, button_y, 60, 30)
+        button_width = 60
+        button_spacing = 5
+        start_x = self.dialog_x + 40  # 左端から開始
 
         # マウスオーバー判定
         mouse_pos = pygame.mouse.get_pos()
 
-        # 減少ボタン
-        dec_color = self.button_hover_color if self.decrease_button_rect.collidepoint(mouse_pos) else self.button_color
-        pygame.draw.rect(self.screen, dec_color, self.decrease_button_rect)
-        pygame.draw.rect(self.screen, (100, 90, 80), self.decrease_button_rect, 2)
-        dec_text = self.small_font.render("-10", True, (240, 240, 240))
-        dec_rect = dec_text.get_rect(center=self.decrease_button_rect.center)
-        self.screen.blit(dec_text, dec_rect)
+        # -100 ボタン
+        self.decrease_100_button_rect = pygame.Rect(start_x, button_y, button_width, 30)
+        dec100_color = self.button_hover_color if self.decrease_100_button_rect.collidepoint(mouse_pos) else self.button_color
+        pygame.draw.rect(self.screen, dec100_color, self.decrease_100_button_rect)
+        pygame.draw.rect(self.screen, (100, 90, 80), self.decrease_100_button_rect, 2)
+        dec100_text = self.small_font.render("-100", True, (240, 240, 240))
+        dec100_rect = dec100_text.get_rect(center=self.decrease_100_button_rect.center)
+        self.screen.blit(dec100_text, dec100_rect)
 
-        # 増加ボタン
-        inc_color = self.button_hover_color if self.increase_button_rect.collidepoint(mouse_pos) else self.button_color
-        pygame.draw.rect(self.screen, inc_color, self.increase_button_rect)
-        pygame.draw.rect(self.screen, (100, 90, 80), self.increase_button_rect, 2)
-        inc_text = self.small_font.render("+10", True, (240, 240, 240))
-        inc_rect = inc_text.get_rect(center=self.increase_button_rect.center)
-        self.screen.blit(inc_text, inc_rect)
+        # -50 ボタン
+        self.decrease_50_button_rect = pygame.Rect(start_x + button_width + button_spacing, button_y, button_width, 30)
+        dec50_color = self.button_hover_color if self.decrease_50_button_rect.collidepoint(mouse_pos) else self.button_color
+        pygame.draw.rect(self.screen, dec50_color, self.decrease_50_button_rect)
+        pygame.draw.rect(self.screen, (100, 90, 80), self.decrease_50_button_rect, 2)
+        dec50_text = self.small_font.render("-50", True, (240, 240, 240))
+        dec50_rect = dec50_text.get_rect(center=self.decrease_50_button_rect.center)
+        self.screen.blit(dec50_text, dec50_rect)
+
+        # -10 ボタン
+        self.decrease_10_button_rect = pygame.Rect(start_x + (button_width + button_spacing) * 2, button_y, button_width, 30)
+        dec10_color = self.button_hover_color if self.decrease_10_button_rect.collidepoint(mouse_pos) else self.button_color
+        pygame.draw.rect(self.screen, dec10_color, self.decrease_10_button_rect)
+        pygame.draw.rect(self.screen, (100, 90, 80), self.decrease_10_button_rect, 2)
+        dec10_text = self.small_font.render("-10", True, (240, 240, 240))
+        dec10_rect = dec10_text.get_rect(center=self.decrease_10_button_rect.center)
+        self.screen.blit(dec10_text, dec10_rect)
+
+        # +10 ボタン
+        self.increase_10_button_rect = pygame.Rect(start_x + (button_width + button_spacing) * 3, button_y, button_width, 30)
+        inc10_color = self.button_hover_color if self.increase_10_button_rect.collidepoint(mouse_pos) else self.button_color
+        pygame.draw.rect(self.screen, inc10_color, self.increase_10_button_rect)
+        pygame.draw.rect(self.screen, (100, 90, 80), self.increase_10_button_rect, 2)
+        inc10_text = self.small_font.render("+10", True, (240, 240, 240))
+        inc10_rect = inc10_text.get_rect(center=self.increase_10_button_rect.center)
+        self.screen.blit(inc10_text, inc10_rect)
+
+        # +50 ボタン
+        self.increase_50_button_rect = pygame.Rect(start_x + (button_width + button_spacing) * 4, button_y, button_width, 30)
+        inc50_color = self.button_hover_color if self.increase_50_button_rect.collidepoint(mouse_pos) else self.button_color
+        pygame.draw.rect(self.screen, inc50_color, self.increase_50_button_rect)
+        pygame.draw.rect(self.screen, (100, 90, 80), self.increase_50_button_rect, 2)
+        inc50_text = self.small_font.render("+50", True, (240, 240, 240))
+        inc50_rect = inc50_text.get_rect(center=self.increase_50_button_rect.center)
+        self.screen.blit(inc50_text, inc50_rect)
+
+        # +100 ボタン
+        self.increase_100_button_rect = pygame.Rect(start_x + (button_width + button_spacing) * 5, button_y, button_width, 30)
+        inc100_color = self.button_hover_color if self.increase_100_button_rect.collidepoint(mouse_pos) else self.button_color
+        pygame.draw.rect(self.screen, inc100_color, self.increase_100_button_rect)
+        pygame.draw.rect(self.screen, (100, 90, 80), self.increase_100_button_rect, 2)
+        inc100_text = self.small_font.render("+100", True, (240, 240, 240))
+        inc100_rect = inc100_text.get_rect(center=self.increase_100_button_rect.center)
+        self.screen.blit(inc100_text, inc100_rect)
 
         # 確定・キャンセルボタン
         button_y = self.dialog_y + self.dialog_height - 80  # ヘルプテキスト用のスペースを確保

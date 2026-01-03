@@ -14,7 +14,12 @@
       "Bash(rm:*)",
       "Bash(timeout 5 python:*)",
       "Bash(cmd /c \"dir /b /o-d *.log 2>nul\")",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git -C \"c:/Users/tozka/src/nobunaga\" mv core/turn_manager_v2.py core/sequential_turn_manager.py)",
+      "Bash(git -C \"c:\\\\Users\\\\tozka\\\\src\\\\nobunaga\" diff HEAD~1 HEAD -- main.py)",
+      "Bash(git -C \"c:\\\\Users\\\\tozka\\\\src\\\\nobunaga\" show HEAD~1:core/turn_manager.py)",
+      "Bash(powershell -Command:*)",
+      "Bash(timeout /t 10 /nobreak)"
     ]
   }
 }

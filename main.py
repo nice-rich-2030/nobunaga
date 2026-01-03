@@ -161,10 +161,10 @@ class Game:
             "decide"
         )
 
-        # 行動決定ボタン（プレイヤーの番終了用）
+        # 行動決定終了ボタン（プレイヤーの番終了用）
         self.btn_confirm_actions = Button(
             1100, button_y, 150, 40,
-            "行動決定",
+            "行動決定終了",
             self.font_medium,
             self.confirm_player_actions,
             self.sound_manager,
@@ -344,15 +344,12 @@ class Game:
             return
 
         # Sequential方式: コマンドを記録だけして、「行動決定」時に実行
-        # ただし、Turn 0での将軍配置は即座に実行可能
-        is_turn0_general_assignment = (
-            self.game_state.current_turn == 0 and command_type == "assign_general"
-        )
-        if self.seq_mode_state == "waiting_player_input" and not is_turn0_general_assignment:
+        # 武将配置は常に即時実行なので例外処理不要
+        if self.seq_mode_state == "waiting_player_input":
             self._register_command(command_type, province)
             return
 
-        # Turn 0の将軍配置など、即座に実行するケース
+        # 即座に実行するケース
         result = None
         if command_type == "cultivate":
             result = self.internal_affairs.execute_cultivation(province)
@@ -1259,7 +1256,7 @@ class Game:
         )
 
     def execute_transfer(self, resource_type, target_province_id, amount):
-        """転送を実行"""
+        """転送を実行（即時実行）"""
         if not self.selected_province_id:
             return
 
@@ -1272,23 +1269,44 @@ class Game:
             self.add_message("この領地は既にコマンドを登録しました")
             return
 
-        # コマンドをリストに登録
-        command_type_map = {
-            "soldiers": "transfer_soldiers",
-            "gold": "transfer_gold",
-            "rice": "transfer_rice"
-        }
-        self.player_internal_commands.append({
-            "type": command_type_map[resource_type],
-            "province_id": province.id,
-            "target_id": target_province_id,
-            "amount": amount
-        })
-        province.command_used_this_turn = True
+        # 転送を即時実行
+        result = None
+        if resource_type == "soldiers":
+            result = self.transfer_system.transfer_soldiers(
+                province.id,
+                target_province_id,
+                amount
+            )
+        elif resource_type == "gold":
+            result = self.transfer_system.transfer_gold(
+                province.id,
+                target_province_id,
+                amount
+            )
+        elif resource_type == "rice":
+            result = self.transfer_system.transfer_rice(
+                province.id,
+                target_province_id,
+                amount
+            )
 
-        resource_names = {"soldiers": "兵士", "gold": "金", "rice": "米"}
-        self.add_message(f"{province.name}から{resource_names[resource_type]}{amount}の転送を登録しました")
-        self.game_state.record_command(province.owner_daimyo_id, province.id, command_type_map[resource_type])
+        if result and result.success:
+            province.command_used_this_turn = True
+            self.add_message(result.message)
+            # 統計記録のみ実行
+            command_type_map = {
+                "soldiers": "transfer_soldiers",
+                "gold": "transfer_gold",
+                "rice": "transfer_rice"
+            }
+            self.game_state.record_command(
+                province.owner_daimyo_id,
+                province.id,
+                command_type_map[resource_type]
+            )
+        else:
+            error_msg = result.message if result else "転送に失敗しました"
+            self.add_message(error_msg)
 
     def show_general_assign_dialog(self):
         """将軍配置ダイアログを表示"""
@@ -1332,10 +1350,8 @@ class Game:
         if not province:
             return
 
-        # 既にコマンド使用済みかチェック
-        if province.command_used_this_turn:
-            self.add_message("この領地は既にコマンドを登録しました")
-            return
+        # コマンド使用済みチェックを削除
+        # （将軍配置・配置解除はコマンドとして扱わない）
 
         # 将軍配置または配置解除
         if general is None:
@@ -1344,16 +1360,14 @@ class Game:
             if result["success"]:
                 self.add_message(result["message"])
         else:
-            # コマンドをリストに登録
-            self.player_internal_commands.append({
-                "type": "assign_general",
-                "province_id": province.id,
-                "general_id": general.id
-            })
-            province.command_used_this_turn = True
-
-            self.add_message(f"{province.name}に{general.name}の配置を登録しました")
-            self.game_state.record_command(province.owner_daimyo_id, province.id, "assign_general")
+            # 将軍配置（即時実行に変更）
+            result = self.internal_affairs.assign_governor(province, general)
+            if result["success"]:
+                self.add_message(f"{province.name}に{general.name}を配置しました")
+                # 統計記録のみ実行（コマンド消費はしない）
+                self.game_state.record_command(province.owner_daimyo_id, province.id, "assign_general")
+            else:
+                self.add_message(result.get("message", "配置に失敗しました"))
 
     def _confirm_attack(self):
         """攻撃決定ボタンのコールバック"""
@@ -1548,6 +1562,9 @@ class Game:
                 # プレイヤーの番のみコマンド実行可能
                 can_execute_command = (self.seq_mode_state == "waiting_player_input")
 
+                # 将軍配置は常に利用可能（コマンド扱いではない）
+                self.btn_assign_general.handle_event(event)
+
                 if can_execute_command:
                     self.btn_cultivate.handle_event(event)
                     self.btn_develop_town.handle_event(event)
@@ -1558,12 +1575,8 @@ class Game:
                     self.btn_transfer_soldiers.handle_event(event)
                     self.btn_transfer_gold.handle_event(event)
                     self.btn_transfer_rice.handle_event(event)
-                    self.btn_assign_general.handle_event(event)
-                elif self.game_state.current_turn == 0:
-                    # ターン0では将軍配置のみ可能
-                    self.btn_assign_general.handle_event(event)
             else:
-                # プレイヤーの番の場合は「行動決定」ボタンを使用
+                # プレイヤーの番の場合は「行動決定終了」ボタンを使用
                 if self.seq_mode_state == "waiting_player_input":
                     self.btn_confirm_actions.handle_event(event)
                 elif self.seq_mode_state is None:  # 処理中でない場合のみ
@@ -1764,7 +1777,7 @@ class Game:
         self.draw_daimyo_health_status()
 
         # ボタン（メッセージログの上に配置）
-        # プレイヤーの番の場合は「行動決定」ボタンを表示
+        # プレイヤーの番の場合は「行動決定終了」ボタンを表示
         if self.seq_mode_state == "waiting_player_input":
             self.btn_confirm_actions.draw(self.screen)
         elif self.seq_mode_state is None:  # 処理中でない場合
@@ -2088,11 +2101,13 @@ class Game:
         self.btn_transfer_rice.draw(self.screen)
 
         # 将軍配置ボタンの有効化設定と描画
-        # Turn 0でも将軍配置は可能にする
-        can_assign_general = (
-            can_execute_command or
-            (self.game_state.current_turn == 0 and not province.command_used_this_turn)
+        # 将軍配置はコマンド扱いではないので自領地であれば常に利用可能
+        player_daimyo = self.game_state.get_daimyo(self.game_state.player_daimyo_id)
+        is_own_province = (
+            player_daimyo and
+            province.owner_daimyo_id == player_daimyo.id
         )
+        can_assign_general = is_own_province
         self.btn_assign_general.set_enabled(can_assign_general)
         self.btn_assign_general.draw(self.screen)
 

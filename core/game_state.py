@@ -123,13 +123,24 @@ class GameState:
             daimyo.intelligence = daimyo_data.get("intelligence", 70)
             daimyo.war_skill = daimyo_data.get("war_skill", 60)
 
-            # 開始領地を設定
-            starting_province_id = daimyo_data.get("starting_province")
-            if starting_province_id and starting_province_id in self.provinces:
-                province = self.provinces[starting_province_id]
-                province.owner_daimyo_id = daimyo.id
-                daimyo.add_province(starting_province_id)
-                daimyo.capital_province_id = starting_province_id
+            # 開始領地を設定（複数領地対応）
+            starting_provinces = daimyo_data.get("starting_provinces", [])
+            if not starting_provinces:
+                # 旧形式の互換性維持
+                starting_province_id = daimyo_data.get("starting_province")
+                if starting_province_id:
+                    starting_provinces = [starting_province_id]
+
+            # 本拠地は最初の領地
+            if starting_provinces and starting_provinces[0] in self.provinces:
+                daimyo.capital_province_id = starting_provinces[0]
+
+            # すべての開始領地を割り当て
+            for province_id in starting_provinces:
+                if province_id in self.provinces:
+                    province = self.provinces[province_id]
+                    province.owner_daimyo_id = daimyo.id
+                    daimyo.add_province(province_id)
 
             self.daimyo[daimyo.id] = daimyo
 

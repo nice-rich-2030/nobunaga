@@ -13,7 +13,8 @@
       "charm": 65,
       "intelligence": 90,
       "war_skill": 85,
-      "starting_province": 1
+      "starting_province": 1,
+      "starting_provinces": [1, 2]
     },
     {
       "id": 2,
@@ -27,7 +28,7 @@
       "charm": 50,
       "intelligence": 85,
       "war_skill": 75,
-      "starting_province": 2
+      "starting_province": 3
     },
     {
       "id": 3,

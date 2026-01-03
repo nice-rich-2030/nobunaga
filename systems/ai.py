@@ -15,7 +15,6 @@ class AISystem:
         self.military_system = military_system
         self.diplomacy_system = diplomacy_system
         self.transfer_system = transfer_system
-        self.turn_manager = None  # TurnManagerへの参照（main.pyから設定）
 
     def execute_ai_turn(self, daimyo_id):
         """AI大名のターンを実行"""
@@ -81,30 +80,9 @@ class AISystem:
                     self.game_state.record_command(daimyo_id, province.id, "recruit")
 
             elif action["type"] == "attack":
-                target_province_id = action["target"]
-                target_province = self.game_state.get_province(target_province_id)
-                if target_province:
-                    attack_force = int(province.soldiers * 0.8)
-                    # 守将がいれば将軍として配属
-                    general_id = province.governor_general_id
-                    result = self.military_system.create_attack_army(
-                        province,
-                        target_province,
-                        attack_force,
-                        general_id
-                    )
-                    if result["success"] and self.turn_manager:
-                        army = result["army"]
-                        # 戦闘をキューに追加
-                        self.turn_manager.queue_battle({
-                            "army": army,
-                            "target_province_id": target_province_id,
-                            "origin_province_id": province.id
-                        })
-                        defender = self.game_state.get_daimyo(target_province.owner_daimyo_id)
-                        defender_name = defender.clan_name if defender else "無所属"
-                        events.append(f"【{daimyo.clan_name}】{province.name}から{defender_name}の{target_province.name}へ出陣（兵力{attack_force}人）")
-                        self.game_state.record_command(daimyo_id, province.id, "attack")
+                # 注: Sequential方式ではAI攻撃はTurnManagerV2内で直接処理される
+                # この分岐はClassic方式用だったため、現在は使用されない
+                pass
 
             elif action["type"] == "transfer":
                 # 転送コマンドを実行
@@ -553,7 +531,7 @@ class AISystem:
             result = self.internal_affairs.assign_governor(province, general)
             if result["success"]:
                 daimyo = self.game_state.get_daimyo(daimyo_id)
-                events.append(f"【{daimyo.clan_name}】{general.name}を{province.name}の守将に任命")
+                events.append(f" 【{daimyo.clan_name}】{general.name}を{province.name}の守将に任命")
                 self.game_state.record_command(daimyo_id, province.id, "assign_general")
 
         return events
