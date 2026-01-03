@@ -438,6 +438,10 @@ class SequentialTurnManager:
             print(f"[DEBUG-AI実行] {daimyo.clan_name}は領地なし、コマンド決定をスキップ")
             return military_commands
 
+        # AI大名の行動開始ディレイ
+        import config
+        yield ("ai_action_delay", config.AI_ACTION_DELAY)
+
         # 将軍配置（コマンド扱い）
         yield from self._ai_assign_generals(daimyo, ai_provinces)
 

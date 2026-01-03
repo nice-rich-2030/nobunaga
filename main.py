@@ -58,8 +58,12 @@ class Game:
 
         # 音声管理の初期化
         from utils.sound_manager import SoundManager
+        from utils.bgm_manager import BGMManager, BGMScene
         self.sound_manager = SoundManager(assets_path)
         self.sound_manager.preload_all_sounds()
+
+        # BGM管理の初期化
+        self.bgm_manager = BGMManager()
 
         # ゲームシステムの初期化
         self.economy_system = EconomySystem(self.game_state)
@@ -104,6 +108,10 @@ class Game:
         # ゲーム実行フラグ
         self.running = True
         self.game_ended = False  # ゲーム終了フラグ（勝利/敗北）
+
+        # AI行動ディレイ制御
+        self.ai_action_delay_timer = 0
+        self.ai_action_delay_duration = 0
 
         # UI状態
         self.selected_province_id = None
@@ -536,6 +544,9 @@ class Game:
                 # ターン開始メッセージ
                 message = event[1]
                 self.add_message(message)
+                # ターン1開始時はプロローグBGM終了、AI大名ターンBGMへ
+                if self.game_state.current_turn == 1:
+                    self.bgm_manager.play_scene("ai_turn")
                 # 次のイベントへ
                 self.process_turn_event()
 
@@ -562,6 +573,9 @@ class Game:
                 battle_data = event[1]
                 self.seq_mode_state = "animating"
 
+                # 戦闘BGMに切り替え
+                self.bgm_manager.play_scene("battle")
+
                 # 戦闘記録を保存（ログ用）
                 self.turn_battle_records.append(battle_data)
 
@@ -577,6 +591,14 @@ class Game:
                     on_finish=lambda: self.show_seq_battle_animation(battle_data)
                 )
 
+            elif event_type == "ai_action_delay":
+                # AI大名の行動決定前のディレイ
+                delay_seconds = event[1]
+                self.seq_mode_state = "ai_action_delay"
+                self.ai_action_delay_timer = 0
+                self.ai_action_delay_duration = int(delay_seconds * config.FPS)  # フレーム数に変換
+                print(f"[DEBUG-ディレイ] AI行動ディレイ開始: {delay_seconds}秒 ({self.ai_action_delay_duration}フレーム)")
+
             elif event_type == "player_turn":
                 # プレイヤーの番
                 daimyo_id = event[1]
@@ -584,6 +606,9 @@ class Game:
                 self.player_internal_commands = []
                 self.player_military_commands = []
                 self.portrait_highlight_timer = self.portrait_highlight_duration  # アニメーション開始
+
+                # プレイヤーターンBGMに切り替え
+                self.bgm_manager.play_scene("player_turn")
 
                 # 大名名を含むメッセージを表示
                 player_daimyo = self.game_state.get_player_daimyo()
@@ -634,6 +659,12 @@ class Game:
             else:
                 self.add_message(f" 【{battle_data['defender_name']}】【戦闘】 {battle_data['defender_province']}を防衛")
 
+        # 戦闘終了後、BGMを復帰
+        # 現在の状態に応じてBGMを切り替え
+        if self.seq_mode_state == "animating":
+            # アニメーション終了後は通常AI大名ターンに戻る
+            self.bgm_manager.play_scene("ai_turn")
+
         # 次のイベントへ
         self.process_turn_event()
 
@@ -671,6 +702,10 @@ class Game:
 
         # generatorに内政コマンドと軍事コマンドを送信して再開
         self.seq_mode_state = "processing"
+
+        # プレイヤーターン終了 → AI大名のターンBGMへ
+        self.bgm_manager.play_scene("ai_turn")
+
         try:
             event = self.seq_turn_generator.send({
                 "internal_commands": self.player_internal_commands,
@@ -695,6 +730,14 @@ class Game:
                 self._handle_seq_event(next_event)
             except StopIteration:
                 self.on_turn_complete()
+
+        elif event_type == "ai_action_delay":
+            # AI大名の行動決定前のディレイ
+            delay_seconds = event[1]
+            self.seq_mode_state = "ai_action_delay"
+            self.ai_action_delay_timer = 0
+            self.ai_action_delay_duration = int(delay_seconds * config.FPS)  # フレーム数に変換
+            print(f"[DEBUG-ディレイ] AI行動ディレイ開始: {delay_seconds}秒 ({self.ai_action_delay_duration}フレーム)")
 
         elif event_type == "death_animation":
             death_data = event[1]
@@ -1645,6 +1688,15 @@ class Game:
         if self.battle_animation.is_visible:
             self.battle_animation.update()
 
+        # AI行動ディレイタイマー処理
+        if self.seq_mode_state == "ai_action_delay":
+            self.ai_action_delay_timer += 1
+            if self.ai_action_delay_timer >= self.ai_action_delay_duration:
+                # ディレイ終了 → 次のイベント処理
+                print(f"[DEBUG-ディレイ] AI行動ディレイ終了: {self.ai_action_delay_timer}フレーム経過")
+                self.seq_mode_state = "processing"
+                self.process_turn_event()
+
         # 勢力マップの更新（ハイライトアニメーション＋マウスオーバー）
         mouse_pos = pygame.mouse.get_pos()
         self.power_map.update(mouse_pos, self.game_state)
@@ -2215,6 +2267,10 @@ class Game:
             print()
         except:
             pass
+
+        # プロローグBGMを開始（Turn 0の場合）
+        if self.game_state.current_turn == 0:
+            self.bgm_manager.play_scene("prologue")
 
         while self.running:
             self.handle_events()

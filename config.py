@@ -239,6 +239,49 @@ SIDE_PANEL_WIDTH = 300
 BOTTOM_PANEL_HEIGHT = 60
 
 # ========================================
+# BGM設定
+# ========================================
+# BGMディレクトリ
+BGM_DIR = os.path.join(BASE_DIR, "assets", "sounds", "bgm")
+
+# BGM音量（各曲ごとに個別設定、0.0 - 1.0）
+BGM_VOLUMES = {
+    "prologue": 0.5,      # プロローグBGMの音量
+    "ai_turn": 0.5,       # AI大名ターンBGMの音量
+    "player_turn": 0.5,   # プレイヤーターンBGMの音量
+    "battle": 0.6         # 戦闘BGMの音量（戦闘は少し大きめ）
+}
+
+# 効果音音量（0.0 - 1.0）
+SE_VOLUME = 0.7
+
+# BGMファイルパス
+BGM_FILES = {
+    "prologue": "prologue.mp3",      # プロローグBGM
+    "ai_turn": "ai_turn.mp3",        # AI大名ターンBGM
+    "player_turn": "player_turn.mp3", # プレイヤーターンBGM
+    "battle": "battle.mp3"            # 戦闘BGM
+}
+
+# 再生位置を記憶するBGM（中断位置から再開）
+BGM_RESUME_SCENES = ["player_turn"]  # プレイヤーターンBGMのみ中断位置から再開
+
+# BGM有効/無効
+BGM_ENABLED = True
+
+# 効果音有効/無効
+SE_ENABLED = True
+
+# BGMフェード時間（ミリ秒）
+BGM_FADE_MS = 1000
+
+# ========================================
+# AI行動ディレイ設定
+# ========================================
+# AI大名の行動決定前の待機時間（秒）
+AI_ACTION_DELAY = 2.0  # 2秒の間
+
+# ========================================
 # デバッグ設定
 # ========================================
 DEBUG_MODE = True
