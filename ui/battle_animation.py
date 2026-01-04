@@ -23,7 +23,8 @@ class BattleAnimationScreen:
         self.battle_data = None
         self.animation_phase = 0  # 0:準備, 1:戦闘開始, 2:交戦中, 3:結果表示
         self.animation_timer = 0
-        self.phase_duration = [60, 40, 80, 120]  # 各フェーズの表示時間（フレーム数）
+        #self.phase_duration = [60, 40, 80, 120]  # 各フェーズの表示時間（フレーム数）
+        self.phase_duration = [60, 40, 160, 120]  # 各フェーズの表示時間（フレーム数）
 
         # 演出用の変数
         self.attacker_bar_value = 100
@@ -71,12 +72,36 @@ class BattleAnimationScreen:
         self.attacker_bar_value = 100
         self.defender_bar_value = 100
 
+        # ラウンド別演出用のデータを取得
+        result = battle_data["result"]
+        self.rounds_detail = getattr(result, 'rounds_detail', [])
+        self.attacker_initial_troops = getattr(result, 'attacker_initial_troops', battle_data["attacker_troops"])
+        self.defender_initial_troops = getattr(result, 'defender_initial_troops', battle_data["defender_troops"])
+
+        # ダメージポップアップ管理
+        self.damage_popups = []
+
+        # ラウンドフラッシュ用
+        self.round_flash_alpha = 0
+
     def update(self):
         """アニメーション更新"""
         if not self.is_visible:
             return
 
         self.animation_timer += 1
+
+        # フェーズ2（交戦中）のラウンド処理
+        if self.animation_phase == 2 and len(self.rounds_detail) > 0:
+            self._update_round_animation()
+
+        # ダメージポップアップの更新
+        for popup in self.damage_popups:
+            popup["timer"] += 1
+            popup["y_offset"] -= 2  # 上に移動
+
+        # 消えたポップアップを削除（30フレーム = 1秒で消滅）
+        self.damage_popups = [p for p in self.damage_popups if p["timer"] < 30]
 
         # フェーズ遷移
         if self.animation_timer >= self.phase_duration[self.animation_phase]:
@@ -93,35 +118,92 @@ class BattleAnimationScreen:
             self._animate_battle()
 
     def _animate_battle(self):
-        """戦闘中のアニメーション"""
+        """戦闘中のアニメーション（段階的減少）"""
         if not self.battle_data or not self.battle_data.get("result"):
             return
 
         result = self.battle_data["result"]
-        progress = self.animation_timer / self.phase_duration[2]
 
-        # 兵力バーを徐々に減少
-        attacker_initial = self.battle_data["attacker_troops"]
-        defender_initial = self.battle_data["defender_troops"]
+        if len(self.rounds_detail) == 0:
+            # フォールバック: ラウンドデータがない場合は線形補間
+            progress = self.animation_timer / self.phase_duration[2]
+            attacker_initial = self.battle_data["attacker_troops"]
+            defender_initial = self.battle_data["defender_troops"]
 
-        if attacker_initial > 0:
-            attacker_final = max(0, result.attacker_remaining / attacker_initial * 100)
-            self.attacker_bar_value = 100 - (100 - attacker_final) * progress
+            if attacker_initial > 0:
+                attacker_final = max(0, result.attacker_remaining / attacker_initial * 100)
+                self.attacker_bar_value = 100 - (100 - attacker_final) * progress
 
-        if defender_initial > 0:
-            defender_final = max(0, result.defender_remaining / defender_initial * 100)
-            self.defender_bar_value = 100 - (100 - defender_final) * progress
+            if defender_initial > 0:
+                defender_final = max(0, result.defender_remaining / defender_initial * 100)
+                self.defender_bar_value = 100 - (100 - defender_final) * progress
+        else:
+            # ラウンドデータがある場合: 段階的減少
+            total_rounds = len(self.rounds_detail)
+            phase2_duration = self.phase_duration[2]
+            frames_per_round = phase2_duration // total_rounds
+
+            current_round_index = self.animation_timer // frames_per_round
+            if current_round_index >= total_rounds:
+                current_round_index = total_rounds - 1
+
+            # 現在のラウンドまでの累積ダメージを計算
+            if current_round_index < total_rounds:
+                round_data = self.rounds_detail[current_round_index]
+                attacker_remaining = round_data["attacker_remaining"]
+                defender_remaining = round_data["defender_remaining"]
+            else:
+                attacker_remaining = result.attacker_remaining
+                defender_remaining = result.defender_remaining
+
+            # パーセンテージに変換
+            if self.attacker_initial_troops > 0:
+                self.attacker_bar_value = (attacker_remaining / self.attacker_initial_troops) * 100
+            if self.defender_initial_troops > 0:
+                self.defender_bar_value = (defender_remaining / self.defender_initial_troops) * 100
 
         # 画面シェイク効果
         import math
         self.shake_offset = int(math.sin(self.animation_timer * 0.5) * 5)
 
-        # フラッシュ効果（ダメージ時）
-        if self.animation_timer % 20 == 0:
-            self.flash_alpha = 100
-
+        # フラッシュ効果（旧式は使わない、ラウンドベースに変更）
         if self.flash_alpha > 0:
             self.flash_alpha -= 10
+
+    def _update_round_animation(self):
+        """フェーズ2のラウンド別アニメーション処理"""
+        total_rounds = len(self.rounds_detail)
+        phase2_duration = self.phase_duration[2]  # 80フレーム
+        frames_per_round = phase2_duration // total_rounds  # 例: 80 / 5 = 16フレーム/ラウンド
+
+        current_round_index = self.animation_timer // frames_per_round
+
+        # ラウンドインデックスが範囲外なら最後のラウンドを使用
+        if current_round_index >= total_rounds:
+            current_round_index = total_rounds - 1
+
+        # ラウンドの最初のフレーム = ダメージポップアップ生成
+        if self.animation_timer % frames_per_round == 0 and current_round_index < total_rounds:
+            round_data = self.rounds_detail[current_round_index]
+
+            # 攻撃側ダメージポップアップ（防御側に与えたダメージ）
+            self.damage_popups.append({
+                "side": "attacker",
+                "damage": round_data["attacker_damage"],
+                "timer": 0,
+                "y_offset": 0
+            })
+
+            # 防御側ダメージポップアップ（攻撃側に与えたダメージ）
+            self.damage_popups.append({
+                "side": "defender",
+                "damage": round_data["defender_damage"],
+                "timer": 0,
+                "y_offset": 0
+            })
+
+            # フラッシュエフェクトを設定
+            self.round_flash_alpha = 150  # 強めのフラッシュ
 
     def handle_event(self, event):
         """イベント処理"""
@@ -426,6 +508,50 @@ class BattleAnimationScreen:
         pygame.draw.line(self.screen, self.defender_color,
                         (center_x + 15 + sword_offset, center_y - 10),
                         (center_x + 15 + sword_offset, center_y + 10), 3)
+
+        # ダメージポップアップ描画
+        self._draw_damage_popups()
+
+        # ラウンドフラッシュエフェクト適用
+        if hasattr(self, 'round_flash_alpha') and self.round_flash_alpha > 0:
+            flash_surface = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
+            flash_surface.fill((255, 255, 255))
+            flash_surface.set_alpha(self.round_flash_alpha)
+            self.screen.blit(flash_surface, (0, 0))
+            self.round_flash_alpha = max(0, self.round_flash_alpha - 15)  # 素早く減衰
+
+    def _draw_damage_popups(self):
+        """ダメージポップアップの描画"""
+        for popup in self.damage_popups:
+            # フェードアウト計算（30フレームで消滅）
+            alpha = int(255 * (1 - popup["timer"] / 30))
+
+            # サイズ計算（最初大きく、徐々に小さく）
+            scale = 1.5 - (popup["timer"] / 30) * 0.5
+            font_size = int(36 * scale)
+            damage_font = pygame.font.Font(None, font_size)
+
+            # ダメージテキスト
+            damage_text = f"-{popup['damage']}"
+            color = (255, 50, 50) if popup["side"] == "defender" else (50, 150, 255)
+
+            # テキストサーフェス生成
+            text_surface = damage_font.render(damage_text, True, color)
+            text_surface.set_alpha(alpha)
+
+            # 表示位置計算
+            if popup["side"] == "attacker":
+                # 攻撃側のダメージは右側に表示（防御側に与えたダメージ）
+                x = config.SCREEN_WIDTH - 150
+            else:
+                # 防御側のダメージは左側に表示（攻撃側に与えたダメージ）
+                x = 150
+
+            y = 340 + popup["y_offset"]  # 兵力バーの下、上に移動
+
+            # 描画
+            text_rect = text_surface.get_rect(center=(x, y))
+            self.screen.blit(text_surface, text_rect)
 
     def _draw_army_status(self, x, y, daimyo_name, province_name, initial_troops, bar_value, color, is_attacker):
         """軍の状態を描画"""

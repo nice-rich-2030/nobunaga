@@ -22,6 +22,12 @@ class BattleResult:
         self.province_captured = False
         self.battle_log: List[str] = []
 
+        # ラウンド別演出用の追加フィールド
+        self.attacker_initial_troops = 0
+        self.defender_initial_troops = 0
+        self.duration_rounds = 0
+        self.rounds_detail: List[Dict] = []
+
 
 class CombatSystem:
     """戦闘システムクラス"""
@@ -56,6 +62,10 @@ class CombatSystem:
         attacker_troops = attacker_army.total_troops
         defender_troops = defender_province.soldiers
 
+        # 初期兵力を記録
+        result.attacker_initial_troops = attacker_troops
+        result.defender_initial_troops = defender_troops
+
         for round_num in range(1, max_rounds + 1):
             # 双方のダメージ計算
             # damage_to_XXX = XXXが受けるダメージ
@@ -72,6 +82,15 @@ class CombatSystem:
             defender_troops -= defender_casualties
             attacker_troops -= attacker_casualties
 
+            # ラウンドデータを記録
+            result.rounds_detail.append({
+                "round": round_num,
+                "attacker_damage": defender_casualties,
+                "defender_damage": attacker_casualties,
+                "attacker_remaining": max(0, attacker_troops),
+                "defender_remaining": max(0, defender_troops)
+            })
+
             # 勝敗判定
             if defender_troops <= 0:
                 result.attacker_won = True
@@ -85,6 +104,9 @@ class CombatSystem:
                 if random.random() < 0.3:  # 30%の確率で撤退
                     result.attacker_won = False
                     break
+
+        # ラウンド数を記録
+        result.duration_rounds = len(result.rounds_detail)
 
         # 結果を記録
         result.attacker_casualties = attacker_army.total_troops - attacker_troops
@@ -324,10 +346,12 @@ class CombatSystem:
         # 攻撃側と防御側でダメージ範囲を変える
         if is_attacker:
             # 攻撃側: 13-21%
-            damage_ratio = 0.13 + random.random() * 0.09
+            #damage_ratio = 0.13 + random.random() * 0.09
+            damage_ratio = 0.5*(0.13 + random.random() * 0.09)
         else:
             # 防御側: 10-17%
-            damage_ratio = 0.10 + random.random() * 0.07
+            #damage_ratio = 0.10 + random.random() * 0.07
+            damage_ratio = 0.5*(0.10 + random.random() * 0.07)
 
         damage = int(power * damage_ratio)
 

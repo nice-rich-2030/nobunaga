@@ -2038,7 +2038,20 @@ class Game:
 
         final_defense_power = int(base_defense_power * defense_bonus * general_bonus)
 
-        info_lines.append(f"防御力: {final_defense_power:,} (基本{base_defense_power:,} × 地形{defense_bonus:.2f} × 将軍{general_bonus:.2f})")
+        # 士気補正を計算（基本戦闘力に含まれる）
+        morale_mult = 1.0
+        if province.soldier_morale > 50:
+            morale_mult = 1.0 + (province.soldier_morale - 50) * config.MORALE_COMBAT_MODIFIER
+        elif province.soldier_morale < 50:
+            morale_mult = max(0.5, 1.0 - (50 - province.soldier_morale) * config.MORALE_COMBAT_MODIFIER)
+
+        # 攻撃力計算
+        expedition_penalty = 0.8
+        base_attack_power = base_defense_power  # 基本戦闘力は同じ
+        final_attack_power = int(base_attack_power * expedition_penalty * general_bonus)
+
+        info_lines.append(f"防御力: {final_defense_power:,} (兵{province.soldiers} × 士気{morale_mult:.2f} × 地形{defense_bonus:.2f} × 将軍{general_bonus:.2f})")
+        info_lines.append(f"攻撃力: {final_attack_power:,} (兵{province.soldiers} × 士気{morale_mult:.2f} × 遠征{expedition_penalty:.2f} × 将軍{general_bonus:.2f})")
 
         # 開発セクション
         info_lines.extend([
