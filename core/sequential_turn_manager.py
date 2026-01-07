@@ -605,26 +605,34 @@ class SequentialTurnManager:
         print(f"[DEBUG-決定チェック] {daimyo.clan_name}の{province.name}: 兵{province.soldiers}")
 
         # 攻撃可能な隣接敵領地があり、兵力が十分な場合は攻撃
-        if province.soldiers >= 150:
-            target_id = self._find_attack_target(province, daimyo.id)
-            print(f"[DEBUG-決定チェック] {daimyo.clan_name}の{province.name}: 攻撃対象検索結果={target_id}")
-            if target_id:
-                target = self.game_state.get_province(target_id)
-                attack_force = int(province.soldiers * 0.8)
+        #if province.soldiers >= 150:
+        target_id = self._find_attack_target(province, daimyo.id)
+        print(f"[DEBUG-決定チェック] {daimyo.clan_name}の{province.name}: 攻撃対象検索結果={target_id}")
+        if target_id:
+            target = self.game_state.get_province(target_id)
+            # AIに兵力比率を決定させる
+            attack_ratio = self.ai_system.decide_attack_ratio(province, target)
 
-                # デバッグログ: 決定時の情報を記録
-                target_owner = self.game_state.get_daimyo(target.owner_daimyo_id)
-                target_owner_name = target_owner.clan_name if target_owner else "無所属"
-                print(f"[DEBUG-決定] {daimyo.clan_name}が{province.name}(兵{province.soldiers})から{target_owner_name}の{target.name}(兵{target.soldiers})への攻撃を決定（攻撃兵力{attack_force}）")
+            # 攻撃中止判定（戦力比不足または守備兵力確保できない）
+            if attack_ratio is None:
+                print(f"[DEBUG-決定] {daimyo.clan_name}の{province.name}から{target.name}への攻撃を中止（条件不足）")
+                return {"type": "none"}
 
-                return {
-                    "type": "attack",
-                    "target_id": target_id,
-                    "attack_force": attack_force,
-                    "general_id": province.governor_general_id
-                }
-        else:
-            print(f"[DEBUG-決定チェック] {daimyo.clan_name}の{province.name}: 兵力不足（{province.soldiers} < 150）")
+            attack_force = int(province.soldiers * attack_ratio)
+
+            # デバッグログ: 決定時の情報を記録
+            target_owner = self.game_state.get_daimyo(target.owner_daimyo_id)
+            target_owner_name = target_owner.clan_name if target_owner else "無所属"
+            print(f"[DEBUG-決定] {daimyo.clan_name}が{province.name}(兵{province.soldiers})から{target_owner_name}の{target.name}(兵{target.soldiers})への攻撃を決定（派遣比率{int(attack_ratio*100)}%、攻撃兵力{attack_force}）")
+
+            return {
+                "type": "attack",
+                "target_id": target_id,
+                "attack_force": attack_force,
+                "general_id": province.governor_general_id
+            }
+        #else:
+        #print(f"[DEBUG-決定チェック] {daimyo.clan_name}の{province.name}: 兵力不足（{province.soldiers} < 150）")
 
         # 徴兵が必要かチェック
         max_enemy = self._get_max_adjacent_enemy_soldiers(province, daimyo.id)

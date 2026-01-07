@@ -1,5 +1,5 @@
 """
-信長の野望 - メインエントリーポイント
+戦国時代 ～織田信長～ - メインエントリーポイント
 pygameを使用した戦略シミュレーションゲーム
 """
 import pygame
@@ -116,6 +116,7 @@ class Game:
         # UI状態
         self.selected_province_id = None
         self.selected_attack_target_id = None  # 攻撃対象として選択中の領地ID
+        self.selected_attack_ratio = config.ATTACK_RATIO_OPTIONS[2]  # 攻撃時の兵力比率（デフォルト75%）
         self.show_province_detail = False
         self.show_attack_selection = False
         self.show_territory_info = False  # 肖像クリックで領地情報を表示
@@ -214,7 +215,7 @@ class Game:
 
         # 内政コマンドボタン
         self.btn_cultivate = Button(
-            540, 270, 180, 35,
+            540, 270-60, 180, 35,
             "開墾 (金200)",
             self.font_small,
             lambda: self.execute_command("cultivate"),
@@ -223,7 +224,7 @@ class Game:
         )
 
         self.btn_develop_town = Button(
-            540, 315, 180, 35,
+            540, 315-60, 180, 35,
             "町開発 (金300)",
             self.font_small,
             lambda: self.execute_command("develop_town"),
@@ -232,7 +233,7 @@ class Game:
         )
 
         self.btn_flood_control = Button(
-            540, 360, 180, 35,
+            540, 360-60, 180, 35,
             "治水 (金150)",
             self.font_small,
             lambda: self.execute_command("flood_control"),
@@ -241,7 +242,7 @@ class Game:
         )
 
         self.btn_give_rice = Button(
-            540, 405, 180, 35,
+            540, 405-60, 180, 35,
             "米配布 (米100)",
             self.font_small,
             lambda: self.execute_command("give_rice"),
@@ -251,7 +252,7 @@ class Game:
 
         # 軍事コマンドボタン
         self.btn_recruit = Button(
-            540, 540, 180, 35,
+            540, 540-60, 180, 35,
             "100人徴兵 (金200)",
             self.font_small,
             lambda: self.execute_command("recruit"),
@@ -260,7 +261,7 @@ class Game:
         )
 
         self.btn_attack = Button(
-            540, 585, 180, 35,
+            540, 585-60, 180, 35,
             "攻撃",
             self.font_small,
             lambda: self.execute_command("attack"),
@@ -270,7 +271,7 @@ class Game:
 
         # 転送コマンドボタン
         self.btn_transfer_soldiers = Button(
-            790, 270, 180, 35,
+            790, 270-60, 180, 35,
             "兵士転送",
             self.font_small,
             lambda: self.execute_command("transfer_soldiers"),
@@ -279,7 +280,7 @@ class Game:
         )
 
         self.btn_transfer_gold = Button(
-            790, 315, 180, 35,
+            790, 315-60, 180, 35,
             "金送付",
             self.font_small,
             lambda: self.execute_command("transfer_gold"),
@@ -288,7 +289,7 @@ class Game:
         )
 
         self.btn_transfer_rice = Button(
-            790, 360, 180, 35,
+            790, 360-60, 180, 35,
             "米運搬",
             self.font_small,
             lambda: self.execute_command("transfer_rice"),
@@ -298,7 +299,7 @@ class Game:
 
         # 将軍配置ボタン
         self.btn_assign_general = Button(
-            790, 405, 180, 35,
+            790, 405-60, 180, 35,
             "将軍配置",
             self.font_small,
             lambda: self.execute_command("assign_general"),
@@ -325,6 +326,48 @@ class Game:
             self._cancel_attack,
             self.sound_manager,
             "cancel"
+        )
+
+        # 兵力選択ボタン（攻撃画面用）
+        btn_y = config.SCREEN_HEIGHT - 180
+        btn_width = 120
+        btn_spacing = 10
+        start_x = (config.SCREEN_WIDTH - (btn_width * 4 + btn_spacing * 3)) // 2
+
+        self.btn_attack_25 = Button(
+            start_x, btn_y, btn_width, 35,
+            f"小規模 ({int(config.ATTACK_RATIO_OPTIONS[0]*100)}%)",
+            self.font_small,
+            lambda: self._set_attack_ratio(config.ATTACK_RATIO_OPTIONS[0]),
+            self.sound_manager,
+            "decide"
+        )
+
+        self.btn_attack_50 = Button(
+            start_x + (btn_width + btn_spacing) * 1, btn_y, btn_width, 35,
+            f"中規模 ({int(config.ATTACK_RATIO_OPTIONS[1]*100)}%)",
+            self.font_small,
+            lambda: self._set_attack_ratio(config.ATTACK_RATIO_OPTIONS[1]),
+            self.sound_manager,
+            "decide"
+        )
+
+        self.btn_attack_75 = Button(
+            start_x + (btn_width + btn_spacing) * 2, btn_y, btn_width, 35,
+            f"大規模 ({int(config.ATTACK_RATIO_OPTIONS[2]*100)}%)",
+            self.font_small,
+            lambda: self._set_attack_ratio(config.ATTACK_RATIO_OPTIONS[2]),
+            self.sound_manager,
+            "decide"
+        )
+
+        self.btn_attack_100 = Button(
+            start_x + (btn_width + btn_spacing) * 3, btn_y, btn_width, 35,
+            f"全軍 ({int(config.ATTACK_RATIO_OPTIONS[3]*100)}%)",
+            self.font_small,
+            lambda: self._set_attack_ratio(config.ATTACK_RATIO_OPTIONS[3]),
+            self.sound_manager,
+            "decide"
         )
 
     def _format_player_command_event(self, daimyo, province, command_type):
@@ -474,8 +517,8 @@ class Game:
         if target_province.owner_daimyo_id == origin_province.owner_daimyo_id:
             return {"success": False, "message": "自分の領地には攻撃できません"}
 
-        # 攻撃軍を編成（全兵力の80%を派遣）
-        attack_force = int(origin_province.soldiers * 0.8)
+        # 攻撃軍を編成（選択された比率を使用）
+        attack_force = int(origin_province.soldiers * self.selected_attack_ratio)
         # 守将がいれば将軍として配属
         general_id = origin_province.governor_general_id
 
@@ -1412,6 +1455,10 @@ class Game:
             else:
                 self.add_message(result.get("message", "配置に失敗しました"))
 
+    def _set_attack_ratio(self, ratio):
+        """攻撃兵力比率を設定"""
+        self.selected_attack_ratio = ratio
+
     def _confirm_attack(self):
         """攻撃決定ボタンのコールバック"""
         if self.selected_attack_target_id is None:
@@ -1597,6 +1644,10 @@ class Game:
                 # 攻撃対象選択画面
                 self.btn_confirm_attack.handle_event(event)
                 self.btn_cancel_attack.handle_event(event)
+                self.btn_attack_25.handle_event(event)
+                self.btn_attack_50.handle_event(event)
+                self.btn_attack_75.handle_event(event)
+                self.btn_attack_100.handle_event(event)
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     self.handle_attack_target_click(event.pos)
             elif self.show_province_detail:
@@ -1770,7 +1821,7 @@ class Game:
             self.screen.fill(config.UI_BG_COLOR)
 
         # タイトルとターン情報を横並びに表示
-        title = self.font_large.render("信長の野望", True, config.UI_HIGHLIGHT_COLOR)
+        title = self.font_large.render("戦国時代 ～織田信長～", True, config.UI_HIGHLIGHT_COLOR)
         self.screen.blit(title, (20, 20))
 
         # ターン情報（タイトルの右側）
@@ -1958,8 +2009,11 @@ class Game:
 
         # 領地一覧ヘッダー
         header_y = panel_y + 80
-        header = self.font_medium.render("領地名      金    米    農民  兵士  開発 町  治水", True, config.UI_TEXT_COLOR)
-        self.screen.blit(header, (panel_x + 20, header_y))
+        # ヘッダーを2つに分けてデータと同じ位置に描画
+        header_name = self.font_medium.render("領地(守将)", True, config.UI_TEXT_COLOR)
+        header_info = self.font_medium.render("     金      米    農民    兵士    開発     町     治水", True, config.UI_TEXT_COLOR)
+        self.screen.blit(header_name, (panel_x + 20, header_y))
+        self.screen.blit(header_info, (panel_x + 170, header_y))
 
         # 領地リスト
         y_pos = header_y + 30
@@ -1967,14 +2021,18 @@ class Game:
 
         for province in player_provinces:
             # 領地名
-            name_text = f"{province.name:8}"
-            name_render = self.font_small.render(name_text, True, config.UI_TEXT_COLOR)
+            if province.governor_general_id:
+                general = self.game_state.get_general(province.governor_general_id)
+                name_text = f"{province.name}({general.name})"
+            else:
+                name_text = province.name
+            name_render = self.font_medium.render(name_text, True, config.UI_TEXT_COLOR)
             self.screen.blit(name_render, (panel_x + 20, y_pos))
 
             # 資源情報
-            info_text = f"{province.gold:5} {province.rice:5} {province.peasants:5} {province.soldiers:4} {province.development_level:4} {province.town_level:3} {province.flood_control:3}%"
-            info_render = self.font_small.render(info_text, True, config.UI_TEXT_COLOR)
-            self.screen.blit(info_render, (panel_x + 120, y_pos))
+            info_text = f"{province.gold:5} {province.rice:6} {province.peasants:6} {province.soldiers:6} {province.development_level:7} {province.town_level:7} {province.flood_control:7}%"
+            info_render = self.font_medium.render(info_text, True, config.UI_TEXT_COLOR)
+            self.screen.blit(info_render, (panel_x + 170, y_pos))
 
             y_pos += 22
 
@@ -2026,8 +2084,9 @@ class Game:
         general = None
         if province.governor_general_id:
             general = self.game_state.get_general(province.governor_general_id)
-            info_lines.append(f"守将: {general.name}")
-            info_lines.append(f"  武力{general.war_skill} 統率{general.leadership} 政治{general.politics} 知力{general.intelligence}")
+            #info_lines.append(f"守将: {general.name}")
+            #info_lines.append(f"  武力{general.war_skill} 統率{general.leadership} 政治{general.politics} 知力{general.intelligence}")
+            info_lines.append(f"守将: {general.name} (武力{general.war_skill} 統率{general.leadership} 政治{general.politics} 知力{general.intelligence})")
         else:
             info_lines.append(f"守将: なし")
 
@@ -2069,18 +2128,18 @@ class Game:
 
         # 忠誠度バー
         loyalty_label = self.font_small.render("農民忠誠度:", True, config.UI_TEXT_COLOR)
-        self.screen.blit(loyalty_label, (100, 525))
-        loyalty_bar = ProgressBar(100, 550, 300, 25, 100, province.peasant_loyalty)
+        self.screen.blit(loyalty_label, (100, 535))
+        loyalty_bar = ProgressBar(100, 560, 300, 20, 100, province.peasant_loyalty)
         loyalty_bar.draw(self.screen, self.font_small)
 
         # 士気バー
         morale_label = self.font_small.render("兵士士気:", True, config.UI_TEXT_COLOR)
-        self.screen.blit(morale_label, (100, 585))
-        morale_bar = ProgressBar(100, 610, 300, 25, 100, province.soldier_morale)
+        self.screen.blit(morale_label, (100, 595))
+        morale_bar = ProgressBar(100, 620, 300, 20, 100, province.soldier_morale)
         morale_bar.draw(self.screen, self.font_small)
 
         # 内政コマンドパネル
-        cmd_panel = Panel(520, 220, 220, 250, "内政コマンド", self.font_medium)
+        cmd_panel = Panel(520, 220-60, 220, 250, "内政コマンド", self.font_medium)
         cmd_panel.draw(self.screen)
 
         # コマンドボタン
@@ -2116,11 +2175,11 @@ class Game:
             status_text = self.font_small.render("このターンのコマンドは実行済みです", True, config.STATUS_NEUTRAL)
             self.screen.blit(status_text, (840, 680))
         elif not can_execute_command:
-            status_text = self.font_small.render("「ターン終了」を押してください", True, config.STATUS_NEUTRAL)
+            status_text = self.font_small.render("将軍を配置できます。", True, config.STATUS_NEUTRAL)
             self.screen.blit(status_text, (840, 680))
 
         # 軍事コマンドパネル
-        mil_panel = Panel(520, 500, 220, 140, "軍事コマンド", self.font_medium)
+        mil_panel = Panel(520, 500-60, 220, 140, "軍事コマンド", self.font_medium)
         mil_panel.draw(self.screen)
 
         # 軍事ボタンの有効/無効を設定
@@ -2140,7 +2199,7 @@ class Game:
         self.btn_attack.draw(self.screen)
 
         # 転送コマンドパネル
-        transfer_panel = Panel(770, 220, 220, 250, "転送コマンド", self.font_medium)
+        transfer_panel = Panel(770, 220-60, 220, 250, "転送コマンド", self.font_medium)
         transfer_panel.draw(self.screen)
 
         # 転送可能な隣接領地があるかチェック
@@ -2177,11 +2236,11 @@ class Game:
         self.btn_assign_general.draw(self.screen)
 
         # 転送情報の表示
-        transfer_info_y = 490
+        transfer_info_y = 490-70
         if has_targets:
-            info_text = f"隣接領地: {len(valid_targets)}箇所"
+            info_text = f"転送できる隣接領地: {len(valid_targets)}箇所"
         else:
-            info_text = "隣接領地なし"
+            info_text = "転送できる隣接領地なし"
         text = self.font_small.render(info_text, True, config.UI_TEXT_COLOR)
         self.screen.blit(text, (810, transfer_info_y))
 
@@ -2207,6 +2266,13 @@ class Game:
         info_text = f"出発地: {origin_province.name}  兵力: {origin_province.soldiers}人"
         text = self.font_medium.render(info_text, True, config.UI_TEXT_COLOR)
         self.screen.blit(text, (100, y))
+
+        # 選択中の兵力比率を表示
+        y += 30
+        selected_troops = int(origin_province.soldiers * self.selected_attack_ratio)
+        ratio_text = f"派遣兵力: {selected_troops}人 ({int(self.selected_attack_ratio * 100)}%)  残留: {origin_province.soldiers - selected_troops}人"
+        ratio_render = self.font_medium.render(ratio_text, True, config.UI_HIGHLIGHT_COLOR)
+        self.screen.blit(ratio_render, (100, y))
 
         # 隣接する敵領地リストを取得
         adjacent_enemies = []
@@ -2240,8 +2306,8 @@ class Game:
                 text = self.font_small.render(info, True, text_color)
                 self.screen.blit(text, (120, y))
 
-                # 勝率予測（簡易版）
-                attack_force = int(origin_province.soldiers * 0.8)
+                # 勝率予測（選択中の比率を使用）
+                attack_force = int(origin_province.soldiers * self.selected_attack_ratio)
                 if attack_force > target.soldiers * 1.5:
                     recommendation = "有利"
                     color = config.STATUS_POSITIVE
@@ -2260,6 +2326,34 @@ class Game:
         # 説明
         help_text = self.font_small.render("領地をクリックして選択", True, config.LIGHT_GRAY)
         self.screen.blit(help_text, (100, config.SCREEN_HEIGHT - 150))
+
+        # 兵力選択ボタンを描画（選択中のボタンをハイライト）
+        ratio_label = self.font_medium.render("派遣規模:", True, config.UI_TEXT_COLOR)
+        self.screen.blit(ratio_label, (100, config.SCREEN_HEIGHT - 195))
+
+        # 選択中のボタンは強調表示
+        for btn, ratio in [(self.btn_attack_25, config.ATTACK_RATIO_OPTIONS[0]),
+                           (self.btn_attack_50, config.ATTACK_RATIO_OPTIONS[1]),
+                           (self.btn_attack_75, config.ATTACK_RATIO_OPTIONS[2]),
+                           (self.btn_attack_100, config.ATTACK_RATIO_OPTIONS[3])]:
+            if abs(self.selected_attack_ratio - ratio) < 0.01:
+                # 選択中: ホバー状態を一時的にTrueにして描画
+                original_hover = btn.is_hovered
+                btn.is_hovered = True
+                btn.draw(self.screen)
+                btn.is_hovered = original_hover
+
+                # 選択マーカーを追加（ボタンの下に小さな三角形）
+                marker_x = btn.rect.centerx
+                marker_y = btn.rect.bottom + 3
+                marker_points = [
+                    (marker_x, marker_y),
+                    (marker_x - 5, marker_y + 5),
+                    (marker_x + 5, marker_y + 5)
+                ]
+                pygame.draw.polygon(self.screen, config.UI_HIGHLIGHT_COLOR, marker_points)
+            else:
+                btn.draw(self.screen)
 
         # ボタン表示
         # 決定ボタンは選択中のみ有効化

@@ -6,10 +6,10 @@ import os
 # ========================================
 # 画面設定
 # ========================================
-SCREEN_WIDTH = 1280
+SCREEN_WIDTH = 1380
 SCREEN_HEIGHT = 720
 FPS = 30
-WINDOW_TITLE = "信長の野望 - Nobunaga's Ambition"
+WINDOW_TITLE = "戦国時代 ～織田信長～"
 
 # ========================================
 # 色定義
@@ -95,7 +95,7 @@ FLOOD_CONTROL_COST = 150  # 金
 FLOOD_CONTROL_BOOST = 20  # +20%
 
 GIVE_RICE_AMOUNT = 100  # 米
-GIVE_RICE_LOYALTY_BOOST = 10
+# GIVE_RICE_LOYALTY_BOOST = 10  # 非推奨: 動的計算に変更 (100 - 忠誠度) // 2
 
 # ========================================
 # ゲームバランス定数 - 軍事
@@ -116,6 +116,23 @@ PINCER_BONUS = 2.0  # 挟撃ボーナス
 CASTLE_DEFENSE_BONUS = 1.42  # 城防御ボーナス 1+50*(BONUS-1)/100
 MORALE_COMBAT_MODIFIER = 0.02  # 士気50以上で1ポイントあたり2%ボーナス
 GENERAL_SKILL_MODIFIER = 0.01  # 武将戦闘スキル1ポイントあたり1%ボーナス
+
+# ========================================
+# AI兵力派遣設定
+# ========================================
+# 派遣兵力比率オプション（プレイヤーとAI共通）
+ATTACK_RATIO_OPTIONS = [0.5, 0.6, 0.7, 1.0]  # 小規模、中規模、大規模、全軍
+
+# AI兵力派遣の戦力比閾値
+AI_ATTACK_RATIO_THRESHOLDS = {
+    "overwhelming": 2.3,  # 圧倒的優勢 → 33%派遣で十分
+    "superior": 1.9,      # 優勢 → 50%派遣
+    "advantage": 1.64      # やや優勢 → 75%派遣
+    # 1.5未満は攻撃中止（勝算なし）
+}
+
+# 最低守備兵力（攻撃時に領地に残す兵力）
+MIN_GARRISON_TROOPS = 110
 
 # ========================================
 # ゲームバランス定数 - 忠誠度と士気
@@ -246,10 +263,10 @@ BGM_DIR = os.path.join(BASE_DIR, "assets", "sounds", "bgm")
 
 # BGM音量（各曲ごとに個別設定、0.0 - 1.0）
 BGM_VOLUMES = {
-    "prologue": 0.5,      # プロローグBGMの音量
-    "ai_turn": 0.5,       # AI大名ターンBGMの音量
-    "player_turn": 0.5,   # プレイヤーターンBGMの音量
-    "battle": 0.6         # 戦闘BGMの音量（戦闘は少し大きめ）
+    "prologue": 0.2,      # プロローグBGMの音量
+    "ai_turn": 0.3,       # AI大名ターンBGMの音量
+    "player_turn": 0.4,   # プレイヤーターンBGMの音量
+    "battle": 0.5         # 戦闘BGMの音量（戦闘は少し大きめ）
 }
 
 # 効果音音量（0.0 - 1.0）
@@ -259,6 +276,7 @@ SE_VOLUME = 0.7
 BGM_FILES = {
     "prologue": "prologue.mp3",      # プロローグBGM
     "ai_turn": "ai_turn.mp3",        # AI大名ターンBGM
+    "0player_turn": "player_turn.m4a", # プレイヤーターンBGM
     "player_turn": "player_turn.mp3", # プレイヤーターンBGM
     "battle": "battle.mp3"            # 戦闘BGM
 }

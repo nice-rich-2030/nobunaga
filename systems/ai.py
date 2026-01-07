@@ -435,6 +435,75 @@ class AISystem:
 
         return None
 
+    def decide_attack_ratio(self, attacker_province, defender_province):
+        """AIが攻撃時の兵力比率を決定（2ステップアルゴリズム）
+
+        ステップ1: 戦力比に基づいて派遣率を決定
+        ステップ2: 守備兵力を確保できるか確認、必要なら派遣率を下げる
+
+        Args:
+            attacker_province: 攻撃元の領地
+            defender_province: 攻撃対象の領地
+
+        Returns:
+            float or None: 派遣する兵力比率（0.0-1.0）、攻撃中止の場合はNone
+        """
+        # ========================================
+        # ステップ1: 戦力比による派遣率決定
+        # ========================================
+        # MUST USE: config.AI_ATTACK_RATIO_THRESHOLDS と config.ATTACK_RATIO_OPTIONS
+        thresholds = config.AI_ATTACK_RATIO_THRESHOLDS
+        ratio_options = config.ATTACK_RATIO_OPTIONS
+
+        # 戦力比を計算
+        attacker_power = attacker_province.get_combat_power()
+        defender_power = defender_province.get_combat_power()
+        defense_bonus = defender_province.get_defense_bonus()
+
+        # 防御ボーナスを考慮した実質的な守備力
+        effective_defender_power = int(defender_power * defense_bonus)
+
+        # 戦力比率を計算（攻撃力 / 防御力）
+        if effective_defender_power > 0:
+            power_ratio = attacker_power / effective_defender_power
+        else:
+            power_ratio = 10.0  # 無防備
+
+        print(f"[NEIGHBOR decide_attack_ratio]   {attacker_province.name} vs {defender_province.name}: {power_ratio}")
+
+        # 戦力比に基づく派遣率の決定
+        if power_ratio >= thresholds["overwhelming"]:
+            desired_ratio = ratio_options[0]  # 0.33 (33%)
+        elif power_ratio >= thresholds["superior"]:
+            desired_ratio = ratio_options[1]  # 0.5 (50%)
+        elif power_ratio >= thresholds["advantage"]:
+            desired_ratio = ratio_options[2]  # 0.75 (75%)
+        else:
+            # 戦力比が不足（1.5未満）→ 攻撃中止
+            return None
+
+        # ========================================
+        # ステップ2: 守備兵力の確認
+        # ========================================
+        attack_force = int(attacker_province.soldiers * desired_ratio)
+        remaining_garrison = attacker_province.soldiers - attack_force
+
+        if remaining_garrison < config.MIN_GARRISON_TROOPS:
+            # 1段階下げる
+            desired_ratio = desired_ratio * 0.9 # 0.9倍で下げる
+
+
+            # 再計算
+            attack_force = int(attacker_province.soldiers * desired_ratio)
+            remaining_garrison = attacker_province.soldiers - attack_force
+
+            # まだ不足している場合は攻撃中止
+            if remaining_garrison < config.MIN_GARRISON_TROOPS:
+                return None
+
+        # 派遣率を返す
+        return desired_ratio
+
     def execute_ai_diplomacy(self, daimyo_id):
         """AI大名の外交行動を実行"""
         daimyo = self.game_state.get_daimyo(daimyo_id)

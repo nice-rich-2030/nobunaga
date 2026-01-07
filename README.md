@@ -1,4 +1,4 @@
-# 信長の野望風戦略ゲーム (Nobunaga's Ambition-style Strategy Game)
+# 戦国時代戦略ゲーム (Nobunaga's Ambition-style Strategy Game)
 
 Pythonとpygameで作成された、戦国時代をテーマにした戦略シミュレーションゲームです。
 

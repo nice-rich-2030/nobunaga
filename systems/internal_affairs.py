@@ -71,7 +71,10 @@ class InternalAffairsSystem:
             return {"success": False, "message": "米が不足しています"}
 
         province.spend(rice=config.GIVE_RICE_AMOUNT)
-        province.update_loyalty(config.GIVE_RICE_LOYALTY_BOOST)
+
+        # 忠誠度上昇量を動的計算: (100 - 現在の忠誠度) // 2
+        loyalty_boost = (100 - province.peasant_loyalty) // 2
+        province.update_loyalty(loyalty_boost)
 
         return {
             "success": True,
