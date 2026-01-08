@@ -20,7 +20,11 @@
       "Bash(git -C \"c:\\\\Users\\\\tozka\\\\src\\\\nobunaga\" show HEAD~1:core/turn_manager.py)",
       "Bash(powershell -Command:*)",
       "Bash(timeout /t 10 /nobreak)",
-      "Bash(timeout 10 python:*)"
+      "Bash(timeout 10 python:*)",
+      "Bash(mkdir:*)",
+      "Bash(git -C \"c:\\\\Users\\\\tozka\\\\src\\\\nobunaga\" show HEAD~1:main.py)",
+      "Bash(findstr:*)",
+      "Bash(git -C \"c:\\\\Users\\\\tozka\\\\src\\\\nobunaga\" show d115d36:main.py)"
     ]
   }
 }
