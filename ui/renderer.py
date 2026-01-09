@@ -29,39 +29,6 @@ class GameRenderer:
         self.image_manager = image_manager
         self.power_map = power_map
 
-    def render_main(self, game_state, ui_state, economy_system, buttons, dialogs):
-        """メイン描画ディスパッチャー
-
-        Args:
-            game_state: ゲーム状態
-            ui_state: UI状態辞書
-            economy_system: 経済システム
-            buttons: ボタン辞書
-            dialogs: ダイアログ辞書
-        """
-        # 背景画像を描画
-        main_bg = self.image_manager.load_background(
-            "main_background.png",
-            target_size=(config.SCREEN_WIDTH, config.SCREEN_HEIGHT)
-        )
-        if main_bg:
-            self.screen.blit(main_bg, (0, 0))
-        else:
-            self.screen.fill(config.UI_BG_COLOR)
-
-        # 画面状態に応じて描画
-        if ui_state['show_attack_selection']:
-            self.render_attack_selection(game_state, ui_state, buttons)
-        elif ui_state['show_province_detail']:
-            self.render_province_detail(game_state, ui_state, buttons)
-        else:
-            self.render_main_map(game_state, ui_state, economy_system, buttons)
-
-        # ダイアログ・オーバーレイを最前面に描画
-        self._render_overlays(dialogs, ui_state)
-
-        pygame.display.flip()
-
     def _render_overlays(self, dialogs, ui_state):
         """ダイアログとオーバーレイを描画
 
@@ -99,6 +66,8 @@ class GameRenderer:
 
         # 領地情報パネル
         if ui_state['show_territory_info']:
+            # メイン画面を暗くするオーバーレイを描画
+            self._draw_dark_overlay()
             self.draw_territory_info_panel(dialogs['game_state'], ui_state)
 
     def render_main_map(self, game_state, ui_state, economy_system, buttons):
@@ -300,11 +269,7 @@ class GameRenderer:
             game_state: ゲーム状態
             ui_state: UI状態辞書
         """
-        # 半透明の背景
-        overlay = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
-        overlay.set_alpha(180)
-        overlay.fill((0, 0, 0))
-        self.screen.blit(overlay, (0, 0))
+
 
         # パネルサイズと位置
         panel_width = 600
@@ -393,7 +358,7 @@ class GameRenderer:
             return
 
         # 背景パネル
-        panel = Panel(60, 60, config.SCREEN_WIDTH - 120, config.SCREEN_HEIGHT - 120,
+        panel = Panel(50, 50, config.SCREEN_WIDTH - 120, config.SCREEN_HEIGHT - 120,
                       f"{province.name} の詳細", self.font_large)
         panel.draw(self.screen)
 
@@ -627,7 +592,7 @@ class GameRenderer:
             return
 
         # 背景パネル
-        panel = Panel(50, 50, config.SCREEN_WIDTH - 100, config.SCREEN_HEIGHT - 100,
+        panel = Panel(50, 50, config.SCREEN_WIDTH - 120, config.SCREEN_HEIGHT - 120,
                       "攻撃対象を選択", self.font_large)
         panel.draw(self.screen)
 
@@ -744,3 +709,14 @@ class GameRenderer:
 
         if btn_cancel_attack:
             btn_cancel_attack.draw(self.screen)
+
+    def _draw_dark_overlay(self, alpha=180):
+        """画面を暗くするオーバーレイを描画
+
+        Args:
+            alpha: 透明度 (0-255、デフォルト128)
+        """
+        overlay = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
+        overlay.set_alpha(alpha)
+        overlay.fill((0, 0, 0))
+        self.screen.blit(overlay, (0, 0))

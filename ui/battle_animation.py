@@ -467,7 +467,7 @@ class BattleAnimationScreen:
 
         # 防御側のステータス（左側に配置）
         self._draw_army_status(
-            640 - offset_x,
+            640+160 - offset_x,
             100,
             defender_commander_name,
             self.battle_data['defender_province'],
@@ -483,8 +483,8 @@ class BattleAnimationScreen:
         defender_portrait = self.image_manager.get_portrait_for_battle(
             defender_general_id, defender_daimyo_id, portrait_size
         )
-        self.screen.blit(defender_portrait, (1000 - offset_x, 80))
-        pygame.draw.rect(self.screen, self.border_color, (1000 - offset_x, 80, 240, 240), 2)
+        self.screen.blit(defender_portrait, (1000+80 - offset_x, 80))
+        pygame.draw.rect(self.screen, self.border_color, (1000+80 - offset_x, 80, 240, 240), 2)
 
         # 中央に刀のアイコン（交戦表現）
         center_x = config.SCREEN_WIDTH // 2
@@ -542,7 +542,7 @@ class BattleAnimationScreen:
             # 表示位置計算
             if popup["side"] == "attacker":
                 # 攻撃側のダメージは右側に表示（防御側に与えたダメージ）
-                x = config.SCREEN_WIDTH - 150
+                x = config.SCREEN_WIDTH - 140
             else:
                 # 防御側のダメージは左側に表示（攻撃側に与えたダメージ）
                 x = 150

@@ -210,9 +210,9 @@ def create_buttons(font_medium, font_small, sound_manager, game_instance):
         "decide"
     )
 
-    # 戻るボタン
+    # 戻るボタン（行動決定ボタンと同じ位置に配置）
     buttons['close_detail'] = Button(
-        config.SCREEN_WIDTH - 170, button_y, 150, 40,
+        1100, button_y, 150, 40,
         "戻る",
         font_medium,
         game_instance.close_province_detail,

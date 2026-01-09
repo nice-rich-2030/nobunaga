@@ -481,7 +481,9 @@ class Game:
             # 攻撃選択画面をRendererに委譲
             self.renderer.render_attack_selection(self.game_state, ui_state, buttons)
         elif self.show_province_detail:
-            # 領地詳細画面をRendererに委譲
+            # 領地詳細画面: メイン画面を描画してから暗転オーバーレイを適用
+            self.renderer.render_main_map(self.game_state, ui_state, self.economy_system, buttons)
+            self.renderer._draw_dark_overlay()
             self.renderer.render_province_detail(self.game_state, ui_state, buttons,
                                                   self.economy_system, self.transfer_system)
         else:
